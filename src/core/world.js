@@ -91,6 +91,19 @@ export class World {
     this.fill = new THREE.PointLight(0xffd9a0, 0, 60, 2);
     this.fill.position.set(2, 9, 16);
     this.scene.add(this.fill);
+    // soft key light that follows the beast you're looking at, so the focused
+    // creature is always clearly lit and readable — day or night
+    this.beastKey = new THREE.PointLight(0xfff2da, 0, 12, 2);
+    this.beastKey.position.set(0, 6, 6);
+    this.scene.add(this.beastKey);
+  }
+
+  // aim the follow key-light at the focused beast (called each frame by the loop)
+  setKeyTarget(pos) {
+    if (!this.beastKey || !pos) return;
+    this.beastKey.position.set(pos.x + 1.5, pos.y + 4.5, pos.z + 3.5);
+    const night = 1 - (this.day ?? 1);
+    this.beastKey.intensity = lerp(1.6, 7.0, night);   // gentle by day, strong at night
   }
 
   // ── ground ──
@@ -151,7 +164,7 @@ export class World {
 
   _buildGrassBlades() {
     const count = this.Q.grass;
-    const w = 0.075, h = 0.46;
+    const w = 0.07, h = 0.34;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
       -w / 2, 0, 0, w / 2, 0, 0, w * 0.3, h * 0.5, 0, -w * 0.3, h * 0.5, 0, 0, h, 0]), 3));
@@ -191,8 +204,11 @@ export class World {
       if (y < WATER_Y + 0.2) continue;
       dummy.position.set(x, y, z);
       dummy.rotation.set(0, this.rng() * TAU, 0);
-      const s = 0.55 + this.rng() * 0.95;
-      dummy.scale.set(s, s * (0.55 + this.rng() * 0.45), s);
+      // short, manicured lawn where the beasts roam; taller meadow grass farther out
+      const tall = smooth(11, 30, Math.hypot(x, z));
+      const s = 0.5 + this.rng() * 0.7;
+      const hy = s * (0.42 + this.rng() * 0.36) * lerp(0.62, 1.3, tall);
+      dummy.scale.set(s, hy, s);
       dummy.updateMatrix(); mesh.setMatrixAt(n++, dummy.matrix);
     }
     mesh.count = n;
@@ -455,12 +471,12 @@ export class World {
     this.sun.position.copy(this.sunVec).multiplyScalar(120);
     this.sun.intensity = lerp(0.08, 3.3, day);
     this.sun.color.setHSL(0.09, 0.5, lerp(0.58, 0.93, day));
-    this.hemi.intensity = lerp(0.78, 1.05, day);
-    this.hemi.color.setHSL(0.62, 0.5, lerp(0.4, 0.66, day));
-    this.hemi.groundColor.setHSL(0.27, 0.45, lerp(0.18, 0.24, day));
-    this.moon.intensity = lerp(1.1, 0.0, smooth(0.0, 0.34, day));   // moonlight fades as day breaks
-    this.fill.intensity = lerp(3.2, 0.0, day);
-    this.renderer.toneMappingExposure = lerp(0.78, 0.9, day) * (this.lumos ? 1.4 : 1);
+    this.hemi.intensity = lerp(1.15, 1.1, day);                    // keep a soft ambient floor after dark
+    this.hemi.color.setHSL(0.62, 0.4, lerp(0.5, 0.66, day));       // less crushed-blue at night
+    this.hemi.groundColor.setHSL(0.27, 0.42, lerp(0.22, 0.26, day));
+    this.moon.intensity = lerp(2.1, 0.0, smooth(0.0, 0.34, day));  // brighter, sculpting moonlight
+    this.fill.intensity = lerp(3.4, 0.0, day);
+    this.renderer.toneMappingExposure = lerp(0.96, 0.92, day) * (this.lumos ? 1.4 : 1);
     if (this.grassMat) { this.grassMat.uniforms.uDay.value = day; }
     this.lit.forEach(m => m.emissiveIntensity = lerp(2.4, 0.25, day));
 

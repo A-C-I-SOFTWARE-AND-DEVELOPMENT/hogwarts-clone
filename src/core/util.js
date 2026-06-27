@@ -197,6 +197,19 @@ export function barkNormal(size = 256, strength = 2.6) {
   return normalFromHeight(size, (x, y) =>
     valueNoise(x / size * 3, y / size * 26, 2) * 0.7 + fbm(x / size * 6, y / size * 18, 4, 8) * 0.3, strength);
 }
+// soft directional fur relief — clumped strands so a furred body never reads as a smooth ball
+export function furNormal(size = 256, strength = 1.7) {
+  return normalFromHeight(size, (x, y) => {
+    const flow = fbm(x / size * 3.0, y / size * 3.0, 3, 41) * 5.0;             // gentle strand direction
+    const strand = Math.sin((y * 0.7) + flow) * 0.5 + 0.5;                     // fur lying in clumps
+    return strand * 0.55 + fbm(x / size * 26, y / size * 26, 3, 17) * 0.45;    // + fine fuzz
+  }, strength);
+}
+// fine skin pores / soft bumps — for smooth-skinned and feathered beasts
+export function skinNormal(size = 256, strength = 1.1) {
+  return normalFromHeight(size, (x, y) =>
+    fbm(x / size * 12, y / size * 12, 4, 53) * 0.55 + valueNoise(x / size * 38, y / size * 38, 67) * 0.45, strength);
+}
 // soft mottled spots/speckle albedo overlay
 export function spottedTexture(size, baseHex, spotHex, density = 0.4) {
   const base = new THREE.Color(baseHex), spot = new THREE.Color(spotHex);

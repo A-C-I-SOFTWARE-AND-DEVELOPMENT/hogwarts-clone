@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { Creature, eyeball, blob, limb } from './base.js';
 import {
   creatureMat, applyRim, furTexture, scaleNormal, featherTexture, chitinNormal,
-  hideNormal, barkNormal, spottedTexture, TAU, clamp, lerp, rngRange, makeRng,
+  hideNormal, barkNormal, spottedTexture, furNormal, skinNormal, TAU, clamp, lerp, rngRange, makeRng,
 } from '../core/util.js';
 import { archProfile } from './behavior.js';
 
@@ -26,6 +26,8 @@ const SCALE_N = () => cached('scaleN', () => scaleNormal(256, 24, 3));
 const CHITIN_N = () => cached('chitinN', () => chitinNormal(256, 9, 2.6));
 const HIDE_N = () => cached('hideN', () => hideNormal(256, 2));
 const BARK_N = () => cached('barkN', () => barkNormal(256, 2.6));
+const FUR_N = () => cached('furN', () => furNormal(256, 1.7));
+const SKIN_N = () => cached('skinN', () => skinNormal(256, 1.1));
 
 // ── surface materials per skin type ──
 function surfaceMats(skin, P) {
@@ -35,8 +37,10 @@ function surfaceMats(skin, P) {
   switch (skin) {
     case 'fur': {
       const t = cached('fur' + base + (P.tip ?? belly), () => furTexture(128, base, P.tip ?? belly, 0.6));
-      bodyMat = creatureMat(base, { rough: 0.7, map: t, rimColor: rim.color });
-      bellyMat = creatureMat(belly, { rough: 0.62 });
+      bodyMat = creatureMat(base, { rough: 0.78, map: t, normalMap: FUR_N(), rimColor: rim.color });
+      bodyMat.normalScale = new THREE.Vector2(0.85, 0.85);
+      bellyMat = creatureMat(belly, { rough: 0.66, normalMap: FUR_N() });
+      bellyMat.normalScale = new THREE.Vector2(0.6, 0.6);
       break;
     }
     case 'scale': {
@@ -47,8 +51,10 @@ function surfaceMats(skin, P) {
     }
     case 'feather': {
       const t = cached('feat' + base + accent, () => featherTexture(128, base, accent));
-      bodyMat = creatureMat(base, { rough: 0.65, map: t, rimColor: 0xfff0d0 });
-      bellyMat = creatureMat(belly, { rough: 0.6 });
+      bodyMat = creatureMat(base, { rough: 0.6, map: t, normalMap: SKIN_N(), rimColor: 0xfff0d0 });
+      bodyMat.normalScale = new THREE.Vector2(0.5, 0.5);
+      bellyMat = creatureMat(belly, { rough: 0.58, normalMap: SKIN_N() });
+      bellyMat.normalScale = new THREE.Vector2(0.4, 0.4);
       break;
     }
     case 'chitin': {
@@ -68,7 +74,8 @@ function surfaceMats(skin, P) {
       break;
     }
     case 'bone': {
-      bodyMat = creatureMat(base, { rough: 0.6, rimColor: 0xffffff, rimStrength: 0.5 });
+      bodyMat = creatureMat(base, { rough: 0.6, normalMap: SKIN_N(), rimColor: 0xffffff, rimStrength: 0.5 });
+      bodyMat.normalScale = new THREE.Vector2(0.7, 0.7);
       bellyMat = creatureMat(belly, { rough: 0.65 });
       break;
     }
@@ -84,9 +91,11 @@ function surfaceMats(skin, P) {
       bellyMat = bodyMat;
       break;
     }
-    default: { // smooth skin
-      bodyMat = creatureMat(base, { rough: 0.5, rimColor: rim.color });
-      bellyMat = creatureMat(belly, { rough: 0.5 });
+    default: { // smooth skin — still give it fine pores so it isn't a glassy ball
+      bodyMat = creatureMat(base, { rough: 0.52, normalMap: SKIN_N(), rimColor: rim.color });
+      bodyMat.normalScale = new THREE.Vector2(0.6, 0.6);
+      bellyMat = creatureMat(belly, { rough: 0.5, normalMap: SKIN_N() });
+      bellyMat.normalScale = new THREE.Vector2(0.4, 0.4);
     }
   }
   // pattern overlay (spots/stripes) via albedo map when no map already set
@@ -104,9 +113,9 @@ function surfaceMats(skin, P) {
 
 // ── part builders ──────────────────────────────────────────────────────────────
 function buildEyes(c, head, cfg, P, place) {
-  const n = cfg.count ?? 2, r = cfg.size ?? 0.16;
+  const n = cfg.count ?? 2, r = (cfg.size ?? 0.16) * 1.3;   // bigger, more expressive eyes read as a face
   for (let i = 0; i < n; i++) {
-    const e = eyeball(r, P.eye ?? 0x141a2c, r > 0.18);
+    const e = eyeball(r, P.eye ?? 0x141a2c, true);
     const sx = (i % 2 === 0 ? -1 : 1);
     const ring = Math.floor(i / 2);
     place(e, sx, ring, i);
@@ -284,14 +293,21 @@ function assemble(c, B, mats, P) {
     const skull = blob(girth * 0.55, girth * 0.55, girth * 0.6, mats.body); head.add(skull);
   } else { // beast / equine / feline — quadruped
     const tall = arch === 'equine';
-    const yb = tall ? girth * 1.7 : girth * 1.0;
-    const torso = blob(girth, girth * (tall ? 0.8 : 0.9), len * 1.15, mats.body); torso.position.y = yb; body.add(torso);
-    const belly = blob(girth * 0.85, girth * 0.7, len * 0.8, mats.belly); belly.position.set(0, yb - girth * 0.3, len * 0.2); body.add(belly);
+    // sit the barrel up on its legs (raised) so the legs are clearly visible —
+    // a creature standing on four legs reads as an animal, not a dome on the ground
+    const yb = tall ? girth * 1.95 : girth * 1.42;
+    // a long, lower barrel (wider than tall) reads as a four-legged animal, not a ball
+    const torso = blob(girth * 0.96, girth * (tall ? 0.8 : 0.78), len * 1.4, mats.body); torso.position.y = yb; body.add(torso);
+    // chest/shoulder swell forward for a defined front
+    const chest = blob(girth * 0.9, girth * 0.82, len * 0.5, mats.body); chest.position.set(0, yb + girth * 0.04, len * 0.6); body.add(chest);
+    const belly = blob(girth * 0.82, girth * 0.62, len * 0.85, mats.belly); belly.position.set(0, yb - girth * 0.34, len * 0.2); body.add(belly);
     if (bd.hump) { const hump = blob(girth * 0.7, girth * 0.6, girth * 0.8, mats.body); hump.position.set(0, yb + girth * 0.5, len * 0.4); body.add(hump); }
-    const neck = limb(girth * 0.45, girth * 0.3, len * (tall ? 0.7 : 0.45), mats.body); neck.position.set(0, yb + girth * 0.3, len * 0.7); neck.rotation.x = tall ? -0.5 : -0.3; body.add(neck);
-    head.position.set(0, yb + girth * (tall ? 0.7 : 0.5), len * (tall ? 0.85 : 0.85));
+    // raise the head clear of the barrel and push it forward on a real neck so the
+    // face always reads (a head sunk into the body is what makes a beast a "blob")
+    const neck = limb(girth * 0.5, girth * 0.34, len * (tall ? 0.78 : 0.6), mats.body); neck.position.set(0, yb + girth * (tall ? 0.35 : 0.5), len * 0.72); neck.rotation.x = tall ? -0.5 : -0.55; body.add(neck);
+    head.position.set(0, yb + girth * (tall ? 0.85 : 0.82), len * (tall ? 0.92 : 0.98));
     const sh = B.head?.shape;
-    const skull = blob(girth * 0.55, girth * 0.55, girth * (sh === 'equine' || sh === 'draconic' ? 0.9 : 0.65), mats.body); head.add(skull);
+    const skull = blob(girth * 0.6, girth * 0.62, girth * (sh === 'equine' || sh === 'draconic' ? 0.95 : 0.72), mats.body); head.add(skull);
   }
 
   body.add(head);
@@ -331,8 +347,10 @@ function assemble(c, B, mats, P) {
   // ── legs ──
   const legCfg = B.legs || { count: 4, type: 'paw' };
   if (legCfg.type !== 'none' && legCfg.count > 0) {
-    const yb = (arch === 'equine') ? girth * 1.5 : (arch === 'avian' || arch === 'humanoid' || arch === 'plant') ? len * 0.8 : girth * 0.8;
-    const hLen = (arch === 'equine') ? girth * 1.4 : (arch === 'avian') ? len * 0.6 : girth * 0.7;
+    // legs reach from the body down to the ground (attach height ≈ leg length) so
+    // there is real, visible leg between the belly and the grass
+    const yb = (arch === 'equine') ? girth * 1.72 : (arch === 'avian' || arch === 'humanoid' || arch === 'plant') ? len * 0.82 : girth * 1.22;
+    const hLen = (arch === 'equine') ? girth * 1.72 : (arch === 'avian') ? len * 0.64 : girth * 1.18;
     const count = legCfg.count;
     const rows = (count <= 2) ? 1 : (count <= 4 ? 2 : Math.ceil(count / 2));
     let idx = 0;
@@ -351,7 +369,7 @@ function assemble(c, B, mats, P) {
   // ── tail ──
   if (B.tail && B.tail.type && B.tail.type !== 'none') {
     const tg = buildTail(B.tail.type, B.tail.len, mats, P);
-    if (tg) { const yb = (arch === 'equine') ? girth * 1.6 : girth * 0.9; tg.position.set(0, yb, -len * 0.8); c.parts.tail = tg; body.add(tg); }
+    if (tg) { const yb = (arch === 'equine') ? girth * 1.85 : (arch === 'beast' || arch === 'feline') ? girth * 1.45 : girth * 0.95; tg.position.set(0, yb, -len * 0.8); c.parts.tail = tg; body.add(tg); }
   }
 
   // ── extras ──

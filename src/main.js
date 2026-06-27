@@ -103,14 +103,16 @@ class Game {
 
   _buildCamera() {
     const c = this.stage.camera;
-    c.position.set(4.5, 6.5, 15);
+    c.position.set(3.5, 3.4, 11);
     this.controls = new OrbitControls(c, this.stage.renderer.domElement);
     this.controls.enableDamping = true; this.controls.dampingFactor = 0.07;
-    this.controls.minDistance = 5; this.controls.maxDistance = 32;
-    this.controls.maxPolarAngle = Math.PI * 0.495;
-    this.controls.minPolarAngle = 0.2;
+    this.controls.minDistance = 4; this.controls.maxDistance = 30;
+    // keep the view in a flattering eye-level → 3/4 band: never straight down on a
+    // creature's back (which makes it read as a featureless dome), never below it
+    this.controls.maxPolarAngle = Math.PI * 0.5;
+    this.controls.minPolarAngle = Math.PI * 0.30;   // ≈54° — see the legs & profile, not the back
     this.controls.enablePan = false;
-    this.controls.target.set(1.5, 1.4, 1.5);
+    this.controls.target.set(1.5, 1.0, 1.5);
     this.controls.autoRotate = !reduced;
     this.controls.autoRotateSpeed = 0.18;
   }
@@ -349,6 +351,8 @@ class Game {
         if (innerHeight > innerWidth * 1.3) this._camTarget.y += 1.5;
         this.controls.target.lerp(this._camTarget, 1 - Math.exp(-3 * dt));
         this.controls.update();
+        // keep the soft key-light on the beast we're watching
+        this.world.setKeyTarget(this.director.liveActive()?.group.position);
       }
 
       // night ambience + audio

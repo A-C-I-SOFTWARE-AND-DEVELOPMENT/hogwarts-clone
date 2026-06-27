@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import * as THREE from 'three';
 import { Creature, eyeball, blob, limb } from './base.js';
-import { creatureMat, furTexture, TAU } from '../core/util.js';
+import { creatureMat, furTexture, furNormal, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'niffler',
@@ -30,15 +30,23 @@ export function build(opts = {}) {
   const c = new Creature(meta, opts);
   const P = meta.palette;
   const fur = furTexture(128, P.fur, P.furTip, 0.6);
-  const furMat = creatureMat(P.fur, { rough: 0.62, map: fur });
+  const furMat = creatureMat(P.fur, { rough: 0.74, map: fur, normalMap: furNormal(256, 1.7) });
+  furMat.normalScale = new THREE.Vector2(0.9, 0.9);
   const bellyMat = creatureMat(0x3a4a72, { rough: 0.55 });
   const billMat = creatureMat(P.bill, { rough: 0.4, metal: 0.1 });
   const pawMat = creatureMat(P.paw, { rough: 0.5 });
 
-  // ── body: plump teardrop ──
-  const torso = blob(0.62, 0.56, 0.78, furMat);
-  torso.position.y = 0.52;
+  // ── body: a low, elongated badger-like barrel (clearly longer than wide) ──
+  const torso = blob(0.44, 0.46, 1.0, furMat);
+  torso.position.set(0, 0.58, -0.06);
   c.add(torso);
+  // shoulders rise toward the head; rump tapers behind — a real front-to-back line
+  const shoulders = blob(0.42, 0.44, 0.4, furMat);
+  shoulders.position.set(0, 0.64, 0.34);
+  c.add(shoulders);
+  const rump = blob(0.4, 0.4, 0.4, furMat);
+  rump.position.set(0, 0.54, -0.54);
+  c.add(rump);
 
   // soft pale belly patch
   const belly = blob(0.5, 0.42, 0.5, bellyMat);
@@ -54,7 +62,7 @@ export function build(opts = {}) {
 
   // ── head ──
   const head = new THREE.Group();
-  head.position.set(0, 0.92, 0.5);
+  head.position.set(0, 0.98, 0.62);
   c.parts.head = head; c.body.add(head);
 
   const skull = blob(0.4, 0.38, 0.42, furMat);
@@ -74,11 +82,11 @@ export function build(opts = {}) {
     n.position.set(sx * 0.08, 0.02, 0.62); head.add(n);
   }
 
-  // big dark glossy eyes
+  // big dark glossy eyes — large and forward so the face always reads
   for (const sx of [-1, 1]) {
-    const e = eyeball(0.16, 0x141a2c, true);
-    e.position.set(sx * 0.24, 0.1, 0.28);
-    e.rotation.y = sx * 0.3;
+    const e = eyeball(0.21, 0x141a2c, true);
+    e.position.set(sx * 0.23, 0.15, 0.32);
+    e.rotation.y = sx * 0.22;
     c.registerEye(e); head.add(e);
   }
 
