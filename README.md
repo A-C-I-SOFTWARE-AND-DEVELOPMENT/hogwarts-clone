@@ -51,6 +51,33 @@ will have missed you.
 
 ---
 
+## ✨ Deep systems
+
+- **Genetics & growth** — every beast carries genes (colour, size, **personality**,
+  rare **✨ Shiny**, coat pattern). They grow through life-stages — **Baby → Juvenile
+  → Adult → Elder** — visibly getting bigger as you raise them.
+- **Breeding** — pair two grown, happy beasts in the **Breeding Bower**, win their
+  **Romance Dance** mini-game, and they lay an **egg** that incubates and hatches a
+  new individual. Offspring inherit a fresh roll of both parents' genes with
+  dominant/recessive rules and a mutation chance (shinies, colour morphs, hybrids).
+- **Materials & the Workbench** — well-cared beasts yield magical **materials**
+  (Niffler Trinkets, Unicorn Hair, Graphorn Dust…) when you collect, groom or bathe.
+  Craft them into **Gourmet Treats**, **Growth Pellets**, a **Shiny Lure**, habitat
+  charms and crystals.
+- **Bestiary / Compendium** — a collection log of every species you've discovered,
+  with lore, diet, the material it yields and your completion percentage.
+- **Habitat Builder** — Room-of-Requirement style: pick decor and **tap to place,
+  rotate and remove** it around the grounds. Decor calms beasts and slows need drift.
+- **Broom flight** 🧹 — mount a broom and **soar over the grounds and the castle**
+  with a chase camera (drag to steer, W/S to climb and dive).
+- **Mini-games** — the **Romance Dance** (rhythm) gates breeding bonuses, and
+  **Feeding Frenzy** (catch falling treats) boosts mood and earns Galleons.
+
+The rendering is a stylized-PBR pipeline: fresnel **rim-lit** creatures, a cinematic
+**colour-grade** (lift/contrast/split-tone/vignette/film-grain), bloom and SMAA.
+
+---
+
 ## 🦄 The beasts
 
 | Beast | Rarity | Loves | Note |
