@@ -50,22 +50,22 @@ export function build(opts = {}) {
   // keep handles to all emissive bits so mood can brighten the glow
   const glowParts = [coatMat, coatLightMat, maneMat, hornMat];
 
-  // ── slender barrel body, slightly tucked at the flank ──
-  const torso = blob(0.4, 0.42, 0.66, coatMat);
-  torso.position.set(0, 0.74, -0.04);
+  // ── slender, clearly elongated horse barrel (longer than wide, never a ball) ──
+  const torso = blob(0.33, 0.39, 0.94, coatMat);
+  torso.position.set(0, 0.74, -0.06);
   c.add(torso);
-  // chest swells forward
-  const chest = blob(0.36, 0.38, 0.34, coatMat);
-  chest.position.set(0, 0.78, 0.34);
+  // chest swells forward (narrower than the barrel so the front reads as a chest)
+  const chest = blob(0.32, 0.37, 0.4, coatMat);
+  chest.position.set(0, 0.77, 0.4);
   c.add(chest);
   // pale soft belly
-  const belly = blob(0.34, 0.3, 0.5, coatLightMat);
-  belly.position.set(0, 0.58, 0.02);
-  belly.scale.z = 0.9;
+  const belly = blob(0.3, 0.28, 0.6, coatLightMat);
+  belly.position.set(0, 0.56, 0.0);
+  belly.scale.z = 0.95;
   c.add(belly);
-  // rounded haunch
-  const haunch = blob(0.36, 0.4, 0.34, coatMat);
-  haunch.position.set(0, 0.72, -0.4);
+  // rounded haunch tapering behind
+  const haunch = blob(0.36, 0.42, 0.42, coatMat);
+  haunch.position.set(0, 0.72, -0.5);
   c.add(haunch);
 
   // ── arched neck rising forward to the head ──
@@ -84,7 +84,7 @@ export function build(opts = {}) {
   head.userData.rest = 0.12; // tipped slightly down — gentle gaze
   c.parts.head = head; c.body.add(head);
 
-  const skull = blob(0.2, 0.22, 0.26, coatMat, 18);
+  const skull = blob(0.23, 0.25, 0.3, coatMat, 18);
   skull.position.set(0, 0.04, 0);
   head.add(skull);
   // long delicate muzzle
