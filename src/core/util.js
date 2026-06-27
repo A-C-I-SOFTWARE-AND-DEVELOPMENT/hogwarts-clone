@@ -144,6 +144,15 @@ export function applyRim(material, { color = 0xbfd4ff, strength = 0.32, power = 
     );
     material.userData.shader = shader;
   };
+  // key MUST vary by the features that change the uniform set, so two rim
+  // materials with different maps never share a compiled program (which would
+  // crash refreshUniformsCommon reading a missing uniform's .value).
+  material.customProgramCacheKey = function () {
+    return 'rim_' + (material.map ? 'm' : '') + (material.normalMap ? 'n' : '') +
+      (material.roughnessMap ? 'r' : '') + (material.emissiveMap ? 'e' : '') +
+      (material.alphaMap ? 'a' : '') + (material.transparent ? 't' : '') +
+      (material.vertexColors ? 'v' : '') + (material.flatShading ? 'f' : '');
+  };
   return material;
 }
 

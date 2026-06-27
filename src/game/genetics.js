@@ -24,17 +24,19 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
 // neutral genes (legacy saves / fallback)
 export function neutralGenes() {
-  return { hue: 0, light: 1, sizeMod: 1, personality: 'curious', shiny: false, pattern: 'plain' };
+  return { hue: 0, accentHue: 0, light: 1, sizeMod: 1, personality: 'curious', shiny: false, glow: false, pattern: 'plain' };
 }
 
 // wild-caught: gentle natural variation
 export function randomGenes() {
   return {
     hue: rnd(-0.04, 0.04),
+    accentHue: rnd(-0.06, 0.06),
     light: rnd(0.9, 1.12),
     sizeMod: rnd(0.9, 1.1),
     personality: pick(PERSONALITY_KEYS),
     shiny: Math.random() < 0.02,
+    glow: Math.random() < 0.04,
     pattern: Math.random() < 0.35 ? pick(PATTERNS) : 'plain',
   };
 }
@@ -54,15 +56,19 @@ export function rollGenes(a = neutralGenes(), b = neutralGenes()) {
   else if (a.shiny || b.shiny) shiny = Math.random() < 0.25;
   else shiny = Math.random() < 0.02;
 
-  let hue = inheritNum(a.hue, b.hue, -0.5, 0.5, 0.18);
-  if (mut() < 0.06) hue = rnd(-0.5, 0.5);          // rare big colour morph
+  let hue = inheritNum(a.hue, b.hue, -0.5, 0.5, 0.2);
+  if (mut() < 0.07) hue = rnd(-0.5, 0.5);          // rare full colour morph
+  let accentHue = inheritNum(a.accentHue ?? 0, b.accentHue ?? 0, -0.5, 0.5, 0.22);
+  if (mut() < 0.06) accentHue = rnd(-0.5, 0.5);    // independent accent morph → striking two-tone
+  // glow is recessive, like shiny
+  let glow = (a.glow && b.glow) ? Math.random() < 0.8 : (a.glow || b.glow) ? Math.random() < 0.3 : Math.random() < 0.03;
 
   return {
-    hue,
-    light: inheritNum(a.light, b.light, 0.78, 1.28, 0.12),
-    sizeMod: inheritNum(a.sizeMod, b.sizeMod, 0.78, 1.25, 0.12),
+    hue, accentHue,
+    light: inheritNum(a.light, b.light, 0.74, 1.3, 0.14),
+    sizeMod: inheritNum(a.sizeMod, b.sizeMod, 0.74, 1.3, 0.14),
     personality: mut() < 0.12 ? pick(PERSONALITY_KEYS) : (Math.random() < 0.5 ? a.personality : b.personality),
-    shiny,
+    shiny, glow,
     pattern: Math.random() < 0.5 ? (a.pattern || 'plain') : (b.pattern || 'plain'),
   };
 }
@@ -90,9 +96,14 @@ export function applyGenesToCreature(creature, genes, level = 1) {
     mats.forEach(m => {
       if (!m.color || m.userData._genesApplied) return;
       m.userData._genesApplied = true;
+      const role = m.userData.role;
+      // accent / horn / claw shift on a SEPARATE hue axis → unique two-tone individuals
+      const accentRole = role === 'accent' || role === 'horn' || role === 'claw';
+      const hShift = g.hue + (accentRole ? (g.accentHue || 0) : 0);
       m.color.getHSL(hsl);
-      m.color.setHSL((hsl.h + g.hue + 1) % 1, clamp(hsl.s * (g.pattern === 'pale' ? 0.7 : 1), 0, 1), clamp(hsl.l * g.light, 0, 1));
-      if (g.shiny) { m.emissive = m.emissive || new THREE.Color(); m.emissive.setHSL((hsl.h + g.hue + 0.5) % 1, 0.6, 0.18); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.35); }
+      m.color.setHSL((hsl.h + hShift + 1) % 1, clamp(hsl.s * (g.pattern === 'pale' ? 0.7 : 1), 0, 1), clamp(hsl.l * g.light, 0, 1));
+      if (g.shiny) { m.emissive = m.emissive || new THREE.Color(); m.emissive.setHSL((hsl.h + hShift + 0.5) % 1, 0.6, 0.18); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.35); }
+      else if (g.glow && accentRole) { m.emissive = m.emissive || new THREE.Color(); m.emissive.copy(m.color); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.45); }
     });
   });
   if (g.shiny && creature.sparkleCb) creature._shinyAura = true;
@@ -105,8 +116,10 @@ export function describeGenes(genes, level) {
   bits.push(stageOf(level).name);
   bits.push(p.emoji + ' ' + p.label);
   if (g.shiny) bits.push('✨ Shiny');
-  if (g.sizeMod > 1.12) bits.push('Runt? no — Large');
-  else if (g.sizeMod < 0.9) bits.push('Tiny');
+  if (g.glow) bits.push('🌟 Glowing');
+  if (g.sizeMod > 1.14) bits.push('Giant');
+  else if (g.sizeMod < 0.86) bits.push('Tiny');
+  if (Math.abs(g.accentHue || 0) > 0.18) bits.push('Two-tone');
   if (g.pattern && g.pattern !== 'plain') bits.push(g.pattern[0].toUpperCase() + g.pattern.slice(1));
   return bits;
 }

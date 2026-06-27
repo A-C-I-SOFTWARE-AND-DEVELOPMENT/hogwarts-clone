@@ -95,6 +95,9 @@ function surfaceMats(skin, P) {
   const accentMat = creatureMat(accent, { rough: 0.55 });
   const hornMat = creatureMat(P.horn ?? 0xd8d2bc, { rough: 0.45, metal: 0.05 });
   const clawMat = creatureMat(P.claw ?? 0x2a2620, { rough: 0.4 });
+  // tag roles so genetics can shift body vs. accent colours independently (two-tone)
+  bodyMat.userData.role = 'body'; bellyMat.userData.role = 'belly';
+  accentMat.userData.role = 'accent'; hornMat.userData.role = 'horn'; clawMat.userData.role = 'claw';
   return { body: bodyMat, belly: bellyMat, accent: accentMat, horn: hornMat, claw: clawMat };
 }
 
