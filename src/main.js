@@ -265,7 +265,7 @@ class Game {
       this._saveT += dt;
       if (this._saveT > 12 && this._dirty) { this._saveT = 0; this._dirty = false; this.state.save(); }
 
-      this.stage.render();
+      this.stage.render(t);
     };
     tick();
   }

@@ -113,12 +113,49 @@ export function normalFromHeight(size, heightAt, strength = 2.2) {
   }, { colorSpace: THREE.NoColorSpace });
 }
 
+// Inject a fresnel rim-light (and optional soft cel quantization) into any
+// MeshStandardMaterial via onBeforeCompile — keeps full PBR, shadows and IBL
+// but adds the stylized backlit edge glow that reads as "premium cartoon".
+export function applyRim(material, { color = 0xbfd4ff, strength = 0.32, power = 2.6, cel = 0 } = {}) {
+  material.userData.rim = { color: new THREE.Color(color), strength, power, cel };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uRimColor = { value: material.userData.rim.color };
+    shader.uniforms.uRimStrength = { value: material.userData.rim.strength };
+    shader.uniforms.uRimPow = { value: material.userData.rim.power };
+    shader.uniforms.uCel = { value: material.userData.rim.cel };
+    shader.fragmentShader =
+      'uniform vec3 uRimColor; uniform float uRimStrength,uRimPow,uCel;\n' + shader.fragmentShader;
+    // soft cel-quantize the diffuse irradiance (optional, subtle)
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <lights_fragment_end>',
+      `#include <lights_fragment_end>
+       if (uCel > 0.001) {
+         float l = dot(reflectedLight.directDiffuse, vec3(0.299,0.587,0.114)) + 1e-4;
+         float q = (floor(l * 3.0 + 0.5) / 3.0);
+         reflectedLight.directDiffuse *= mix(1.0, q / l, uCel);
+       }`
+    );
+    // fresnel rim added to the final lit colour
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `float rimDot = 1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0);
+       outgoingLight += uRimColor * pow(rimDot, uRimPow) * uRimStrength;
+       #include <opaque_fragment>`
+    );
+    material.userData.shader = shader;
+  };
+  material.customProgramCacheKey = () => 'rim' + material.userData.rim.power + '_' + material.userData.rim.cel;
+  return material;
+}
+
 // Standard "soft toon-ish" material used widely for creatures (warm, low metal)
-export function creatureMat(hex, { rough = 0.78, metal = 0, map = null, normalMap = null, emissive = 0x000000, emissiveIntensity = 0 } = {}) {
+export function creatureMat(hex, { rough = 0.72, metal = 0, map = null, normalMap = null, roughnessMap = null,
+  emissive = 0x000000, emissiveIntensity = 0, rim = true, rimColor = 0xbfd4ff, rimStrength = 0.3 } = {}) {
   const m = new THREE.MeshStandardMaterial({
-    color: hex, roughness: rough, metalness: metal, map, normalMap,
-    emissive, emissiveIntensity, envMapIntensity: 0.65,
+    color: hex, roughness: rough, metalness: metal, map, normalMap, roughnessMap,
+    emissive, emissiveIntensity, envMapIntensity: 0.8,
   });
+  if (rim) applyRim(m, { color: rimColor, strength: rimStrength, power: 2.8 });
   return m;
 }
 
