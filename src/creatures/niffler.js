@@ -9,6 +9,7 @@ import { creatureMat, furTexture, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'niffler',
+  archetype: 'rodent',
   name: 'Niffler',
   latin: 'Aurum fossor',
   rarity: 'common',

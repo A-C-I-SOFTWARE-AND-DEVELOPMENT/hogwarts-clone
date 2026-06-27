@@ -10,6 +10,7 @@ import { creatureMat, furTexture, TAU, lerp, clamp, damp } from '../core/util.js
 
 export const meta = {
   id: 'hippogriff',
+  archetype: 'avian',
   name: 'Hippogriff',
   latin: 'Equus aquila',
   rarity: 'epic',

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { buildCreature } from '../creatures/index.js';
 import { tickNeeds, moodValue } from './needs.js';
 import { applyGenesToCreature, personalityOf, stageOf } from './genetics.js';
+import { personaProfile } from '../creatures/behavior.js';
 
 const VISIBLE_CAP = 6;
 const DAY_LENGTH_S = 600;            // a full 24h cycle in ~10 real minutes
@@ -66,11 +67,18 @@ export class Director {
       applyGenesToCreature(c, b.genes, b.level);
       const pers = personalityOf(b.genes);
       c.speed *= pers.speed;
+      // drive movement style + how busy/where it roams from the beast's personality
+      c.personaProfile = personaProfile(b.genes?.personality);
       c._targetScale = c.scaleMul * (c.sizeMod || 1) * stageOf(b.level).scale;
       this.world.scene.add(c.group);
       this.live.set(b.id, c);
       if (b._produce == null) b._produce = 0;
     });
+    // Pre-compile the newly-spawned creatures' shaders up front so their custom
+    // rim/cel programs are fully linked before the next frame draws them. This
+    // removes a software-GL warm-up race where a just-added material could be
+    // drawn a frame before its program finished, throwing mid-render.
+    try { this.stage.renderer.compile(this.world.scene, this.stage.camera); } catch (e) { /* non-fatal */ }
   }
 
   setActive(id) {

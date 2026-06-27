@@ -11,6 +11,7 @@ import { creatureMat, furTexture, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'graphorn',
+  archetype: 'beast',
   name: 'Graphorn',
   latin: 'Cornu montanus',
   rarity: 'legendary',

@@ -10,6 +10,7 @@ import { creatureMat, TAU, lerp, clamp } from '../core/util.js';
 
 export const meta = {
   id: 'fwooper',
+  archetype: 'avian',
   name: 'Fwooper',
   latin: 'Avis dementia',
   rarity: 'rare',

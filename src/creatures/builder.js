@@ -17,6 +17,7 @@ import {
   creatureMat, applyRim, furTexture, scaleNormal, featherTexture, chitinNormal,
   hideNormal, barkNormal, spottedTexture, TAU, clamp, lerp, rngRange, makeRng,
 } from '../core/util.js';
+import { archProfile } from './behavior.js';
 
 // ── shared texture cache (keyed) so 100 creatures don't regenerate maps ──
 const _texCache = new Map();
@@ -377,15 +378,33 @@ export function buildFromSpec(spec, opts = {}) {
   const mats = surfaceMats(spec.build?.skin || 'smooth', P);
   assemble(c, spec.build || {}, mats, P);
 
-  // generic, archetype-aware idle flourishes
-  const arch = spec.build?.archetype;
+  // tag the live beast with its archetype so the base rig drives gait + actions
+  const arch = spec.build?.archetype || 'beast';
+  c.archetype = arch;
+  c.archProfile = archProfile(arch);
+
+  // always-on ambient motion so a beast is alive even between deliberate actions
   c.onIdle = (t, dt, env) => {
-    // wing flutter for winged beasts at play / happy
-    if (c.parts.wings.length) {
-      const flap = (c.state === 'play' || c.state === 'happy') ? Math.sin(t * 10) * 0.5 : Math.sin(t * 2) * 0.12;
-      c.parts.wings.forEach(w => { w.rotation.z = (w.userData.side || 1) * flap; });
+    // wing beats: gentle when resting, eager at play; base.js owns wing *actions*
+    if (c.parts.wings.length && c.state !== 'action') {
+      const winged = arch === 'avian' || arch === 'dragon' || arch === 'wyvern' || arch === 'insectoid';
+      const playing = c.state === 'play' || c.state === 'happy';
+      const flutter = (arch === 'insectoid') ? Math.sin(t * 18) * 0.6
+        : playing ? Math.sin(t * 11) * 0.5
+        : (c.state === 'walk' && winged) ? Math.sin(t * 6) * 0.22
+        : Math.sin(t * 2) * 0.1;
+      c.parts.wings.forEach(w => { w.rotation.z = (w.userData.side || 1) * flutter; });
     }
-    if (arch === 'serpent') { c.body.children.forEach((s, i) => { if (s.geometry?.type === 'SphereGeometry') s.position.x = Math.sin(t * 3 + i * 0.6) * 0.12; }); }
+    // serpents and aquatics ripple their segmented bodies constantly
+    if (arch === 'serpent' || arch === 'aquatic') {
+      const amp = (c.state === 'walk') ? 0.16 : 0.1;
+      c.body.children.forEach((s, i) => { if (s.geometry?.type === 'SphereGeometry') s.position.x = Math.sin(t * 3 + i * 0.6) * amp; });
+    }
+    // plants breathe with a slow sway in their leaves/trunk even at rest
+    if (arch === 'plant' && c.parts.head) c.parts.head.rotation.z = Math.sin(t * 1.3) * 0.08;
+    // amorphous oozers never hold still — a constant gelatinous wobble
+    if (arch === 'amorphous' && c.state !== 'action') c.body.scale.x = c.body.scale.x * (1 + Math.sin(t * 3.5) * 0.015);
+    // wisp emitters trail little motes as they go
     if (c._wisps && c.sparkleCb && Math.random() < dt * 1.2) c.sparkleCb(c.headWorld(), 2, P.spark || 0xbcd2ff);
   };
   return c;

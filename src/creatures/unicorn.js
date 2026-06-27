@@ -10,6 +10,7 @@ import { creatureMat, furTexture, TAU, clamp, lerp } from '../core/util.js';
 
 export const meta = {
   id: 'unicorn',
+  archetype: 'equine',
   name: 'Unicorn Foal',
   latin: 'Equus monoceros infans',
   rarity: 'legendary',

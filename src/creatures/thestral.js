@@ -10,6 +10,7 @@ import { creatureMat, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'thestral',
+  archetype: 'equine',
   name: 'Thestral',
   latin: 'Equus mortis',
   rarity: 'rare',

@@ -10,6 +10,7 @@ import { creatureMat, furTexture, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'jobberknoll',
+  archetype: 'avian',
   name: 'Jobberknoll',
   latin: 'Avis taciturna',
   rarity: 'uncommon',
