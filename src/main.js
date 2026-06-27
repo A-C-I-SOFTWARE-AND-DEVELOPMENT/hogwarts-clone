@@ -343,8 +343,10 @@ class Game {
       if (this.flight.active) {
         this.flight.update(dt);
       } else {
-        // camera follows active beast (gentle)
+        // camera follows active beast (gentle); on tall/portrait screens aim a
+        // little higher so the beast sits lower in frame, clear of the top card
         this.director.activeWorldPos(this._camTarget);
+        if (innerHeight > innerWidth * 1.3) this._camTarget.y += 1.5;
         this.controls.target.lerp(this._camTarget, 1 - Math.exp(-3 * dt));
         this.controls.update();
       }

@@ -72,6 +72,12 @@ button{font-family:inherit;color:inherit;background:none;border:none;cursor:poin
   padding:12px 13px 13px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   box-shadow:0 14px 40px rgba(0,0,0,.5)}
 #beastcard .row{display:flex;align-items:center;gap:10px}
+.cardcollapse{flex:0 0 auto;width:22px;height:22px;align-self:flex-start;margin-top:1px;border-radius:50%;
+  border:1px solid var(--line-soft);color:var(--parchment-dim);font-size:.66rem;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.04);transition:background .2s,color .2s}
+.cardcollapse:hover{color:var(--gold);border-color:var(--line)}
+#beastcard.collapsed{padding-bottom:11px}
+#beastcard.collapsed .lvwrap,#beastcard.collapsed .needs,#beastcard.collapsed #produce{display:none}
 #beastcard .nm{font-family:'Cinzel';font-size:1.02rem;color:var(--gold-hi);font-weight:600;line-height:1.1}
 #beastcard .sp{font-size:.7rem;color:var(--parchment-dim);font-style:italic;display:flex;align-items:center;gap:6px}
 .rar{font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;font-family:'Cinzel';padding:1px 6px;border-radius:6px;border:1px solid currentColor}
@@ -268,10 +274,16 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border:none;border-ra
 
 /* responsive */
 @media(max-width:720px){
-  #topbar{flex-wrap:wrap;gap:7px}
+  #topbar{flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #topbar::-webkit-scrollbar{display:none}
+  #topbar .spacer{display:none}
+  .pill,.iconbtn{flex:0 0 auto}
   .hide-sm{display:none}
-  .iconbtn{width:36px;height:36px;font-size:1.02rem}
-  #beastcard{width:min(280px,80vw);top:108px;left:10px}
+  .iconbtn{width:34px;height:34px;font-size:.98rem}
+  #beastcard{width:min(244px,66vw);top:60px;left:8px;padding:9px 10px 10px}
+  #beastcard .nm{font-size:.92rem}
+  #beastcard .needs{gap:5px 9px;margin-top:8px}
+  #beastcard.collapsed .lvwrap,#beastcard.collapsed .needs,#beastcard.collapsed #produce{display:none}
   #roster{top:auto;bottom:calc(108px + env(safe-area-inset-bottom));right:10px;flex-direction:row;max-width:94vw;max-height:none;overflow-x:auto;overflow-y:hidden}
   .rchip .rn{display:none}
   .rchip{flex-direction:row;padding:5px}

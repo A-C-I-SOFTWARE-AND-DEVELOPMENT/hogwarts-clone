@@ -70,9 +70,15 @@ export class HUD {
     this.bondTop = el('div', { class: 'lvtop' }, [el('span', { text: 'Bond' }), el('b', { text: 'Lv 1' })]);
     this.needsWrap = el('div', { class: 'needs' });
     this.produce = el('button', { id: 'produce', class: 'pe', onclick: () => this.game.action('collect') }, '');
+    this.cardCollapse = el('button', { class: 'cardcollapse', title: 'Show / hide details', onclick: (e) => {
+      e.stopPropagation();
+      const c = this.card.classList.toggle('collapsed');
+      this.cardCollapse.textContent = c ? '▸' : '▾';
+    } }, '▾');
     this.card = el('div', { id: 'beastcard', class: 'pe' }, [
       el('div', { class: 'row' }, [
-        el('div', { style: 'min-width:0' }, [this.cardName, this.cardSpecies, this.cardTraits]),
+        this.cardCollapse,
+        el('div', { style: 'min-width:0;flex:1' }, [this.cardName, this.cardSpecies, this.cardTraits]),
         el('div', { class: 'mood' }, [this.cardMoodEm, this.cardMoodW]),
       ]),
       el('div', { class: 'lvwrap' }, [this.bondTop, el('div', { class: 'bar bond' }, [this.bondFill])]),

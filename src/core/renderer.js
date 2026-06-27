@@ -24,9 +24,9 @@ export const PRESETS = {
 // cinematic colour-grade: lift/contrast/saturation, warm/cool split-tone, vignette, grain
 const GradeShader = {
   uniforms: {
-    tDiffuse: { value: null }, uContrast: { value: 1.06 }, uSaturation: { value: 1.12 },
-    uVignette: { value: 0.42 }, uLift: { value: new THREE.Color(0x0a0c14) },
-    uWarm: { value: 0.06 }, uTime: { value: 0 }, uGrain: { value: 0.035 },
+    tDiffuse: { value: null }, uContrast: { value: 1.05 }, uSaturation: { value: 1.1 },
+    uVignette: { value: 0.32 }, uLift: { value: new THREE.Color(0x0a0c16) },
+    uWarm: { value: 0.03 }, uTime: { value: 0 }, uGrain: { value: 0.02 },
     uResolution: { value: new THREE.Vector2(1, 1) },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
@@ -40,8 +40,10 @@ const GradeShader = {
       c = (c - 0.5) * uContrast + 0.5;                          // contrast
       float l = dot(c, vec3(0.299,0.587,0.114));
       c = mix(vec3(l), c, uSaturation);                        // saturation
-      c.r += uWarm * (1.0 - l); c.b -= uWarm * 0.6 * (1.0 - l);// warm highlights / cool shadows
-      c.b += uWarm * 0.4 * l;
+      // split-tone: warm the HIGHLIGHTS, cool the SHADOWS (never redden the dark)
+      c.r += uWarm * l;
+      c.g += uWarm * 0.25 * l;
+      c.b += uWarm * 0.6 * (1.0 - l);
       float d = distance(vUv, vec2(0.5));
       c *= smoothstep(0.95, 0.35, d * uVignette + (1.0 - uVignette) * 0.0);
       c *= 1.0 - uVignette * smoothstep(0.3, 0.95, d) * 0.6;   // vignette darkening
