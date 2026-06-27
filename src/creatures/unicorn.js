@@ -40,10 +40,10 @@ export function build(opts = {}) {
 
   // soft warm fur texture + faint golden self-glow on the coat
   const coatTex = furTexture(128, P.coat, P.coatLight, 0.4);
-  const coatMat = creatureMat(P.coat, { rough: 0.5, map: coatTex, emissive: 0xb88c2a, emissiveIntensity: 0.12 });
-  const coatLightMat = creatureMat(P.coatLight, { rough: 0.45, emissive: 0xcaa647, emissiveIntensity: 0.1 });
-  const maneMat = creatureMat(P.mane, { rough: 0.35, metal: 0.05, emissive: 0xfff0c0, emissiveIntensity: 0.35 });
-  const hornMat = creatureMat(P.horn, { rough: 0.2, metal: 0.25, emissive: 0xfff4d8, emissiveIntensity: 0.5 });
+  const coatMat = creatureMat(P.coat, { rough: 0.5, map: coatTex, emissive: 0xb88c2a, emissiveIntensity: 0.05 });
+  const coatLightMat = creatureMat(P.coatLight, { rough: 0.45, emissive: 0xcaa647, emissiveIntensity: 0.04 });
+  const maneMat = creatureMat(P.mane, { rough: 0.35, metal: 0.05, emissive: 0xfff0c0, emissiveIntensity: 0.18 });
+  const hornMat = creatureMat(P.horn, { rough: 0.2, metal: 0.25, emissive: 0xfff4d8, emissiveIntensity: 0.3 });
   const hoofMat = creatureMat(P.hoof, { rough: 0.35, metal: 0.2, emissive: 0x7a5526, emissiveIntensity: 0.12 });
   const muzzleMat = creatureMat(P.coatLight, { rough: 0.55 });
 
@@ -233,9 +233,9 @@ export function build(opts = {}) {
 
     // radiant glow rises with mood; gentle breathing pulse
     const pulse = 0.5 + Math.sin(t * 1.4) * 0.5;
-    const glow = 0.12 + m * 0.4;
+    const glow = 0.05 + m * 0.16;
     glowParts.forEach(mat => { mat.emissiveIntensity = glow * (0.85 + pulse * 0.3); });
-    hornMat.emissiveIntensity = 0.4 + m * 0.6 + pulse * 0.15; // horn shines brightest
+    hornMat.emissiveIntensity = 0.22 + m * 0.3 + pulse * 0.1; // horn shines brightest
     aura.intensity = lerp(aura.intensity, 0.3 + m * 1.1, clamp(dt * 3));
 
     // soft head dips, as if grazing the air / nuzzling

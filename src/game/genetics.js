@@ -102,8 +102,8 @@ export function applyGenesToCreature(creature, genes, level = 1) {
       const hShift = g.hue + (accentRole ? (g.accentHue || 0) : 0);
       m.color.getHSL(hsl);
       m.color.setHSL((hsl.h + hShift + 1) % 1, clamp(hsl.s * (g.pattern === 'pale' ? 0.7 : 1), 0, 1), clamp(hsl.l * g.light, 0, 1));
-      if (g.shiny) { m.emissive = m.emissive || new THREE.Color(); m.emissive.setHSL((hsl.h + hShift + 0.5) % 1, 0.6, 0.18); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.35); }
-      else if (g.glow && accentRole) { m.emissive = m.emissive || new THREE.Color(); m.emissive.copy(m.color); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.45); }
+      if (g.shiny) { m.emissive = m.emissive || new THREE.Color(); m.emissive.setHSL((hsl.h + hShift + 0.5) % 1, 0.6, 0.18); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.18); }
+      else if (g.glow && accentRole) { m.emissive = m.emissive || new THREE.Color(); m.emissive.copy(m.color); m.emissiveIntensity = Math.max(m.emissiveIntensity || 0, 0.25); }
     });
   });
   if (g.shiny && creature.sparkleCb) creature._shinyAura = true;

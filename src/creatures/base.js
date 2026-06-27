@@ -228,9 +228,11 @@ export class Creature {
     const breath = Math.sin(t * 1.6 + this.bobPhase) * 0.018;
 
     if (this.state === 'sleep') {
+      // gentle breathing + a soft curl to one side — never flatten into a blob
       const s = Math.sin(t * 1.1) * 0.5 + 0.5;
-      squashY = lerp(0.84, 0.9, s); squashXZ = lerp(1.1, 1.05, s);
-      bodyY = -0.06 * this.scaleMul;
+      squashY = lerp(0.93, 0.99, s); squashXZ = lerp(1.04, 1.0, s);
+      bodyY = -0.02 * this.scaleMul;
+      bodyRoll = 0.13;
     } else if (this.state === 'play' || this.state === 'happy') {
       const hop = Math.abs(Math.sin(t * 7));
       bodyY = hop * 0.32 * this.scaleMul;
@@ -316,8 +318,9 @@ export class Creature {
         _v2.copy(this.lookAt).sub(this.headWorld(_v));
         yaw = clamp(Math.atan2(_v2.x, _v2.z) - this.faceAngle, -0.7, 0.7);
       }
-      this.parts.head.rotation.y = damp(this.parts.head.rotation.y, yaw, 6, dt);
+      this.parts.head.rotation.y = damp(this.parts.head.rotation.y, this.state === 'sleep' ? yaw * 0.2 + 0.3 : yaw, 6, dt);
       if (this.state === 'eat') pitch += 0.3;
+      if (this.state === 'sleep') pitch += 0.5;   // chin tucks toward the chest, curled up
       this.parts.head.rotation.x = damp(this.parts.head.rotation.x, pitch, 6, dt);
     }
 

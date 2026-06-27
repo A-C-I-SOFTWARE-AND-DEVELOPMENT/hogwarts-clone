@@ -16,9 +16,9 @@ import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 export const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || matchMedia('(max-width:760px)').matches;
 
 export const PRESETS = {
-  cinematic:  { px: 2,   shadow: 2048, grass: 50000, trees: 340, rocks: 130, bloom: 0.5,  sky: 1024, aa: 'smaa' },
-  balanced:   { px: 1.6, shadow: 1536, grass: 26000, trees: 210, rocks: 84,  bloom: 0.42, sky: 512,  aa: 'smaa' },
-  performance:{ px: 1,   shadow: 1024, grass: 9000,  trees: 110, rocks: 36,  bloom: 0.3,  sky: 256,  aa: 'fxaa' },
+  cinematic:  { px: 2,   shadow: 2048, grass: 50000, trees: 340, rocks: 130, bloom: 0.4,  sky: 1024, aa: 'smaa' },
+  balanced:   { px: 1.6, shadow: 1536, grass: 26000, trees: 210, rocks: 84,  bloom: 0.34, sky: 512,  aa: 'smaa' },
+  performance:{ px: 1,   shadow: 1024, grass: 9000,  trees: 110, rocks: 36,  bloom: 0.24, sky: 256,  aa: 'fxaa' },
 };
 
 // cinematic colour-grade: lift/contrast/saturation, warm/cool split-tone, vignette, grain
@@ -81,7 +81,9 @@ export class Stage {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), this.Q.bloom, 0.5, 0.85);
+    // higher threshold so only true highlights (sun, lit windows, sparkles) bloom —
+    // keeps glowing creatures from blooming into featureless blobs of light
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), this.Q.bloom, 0.6, 0.92);
     this.composer.addPass(this.bloom);
 
     this.grade = new ShaderPass(GradeShader);
