@@ -144,7 +144,71 @@ export function applyRim(material, { color = 0xbfd4ff, strength = 0.32, power = 
     );
     material.userData.shader = shader;
   };
+  // key MUST vary by the features that change the uniform set, so two rim
+  // materials with different maps never share a compiled program (which would
+  // crash refreshUniformsCommon reading a missing uniform's .value).
+  material.customProgramCacheKey = function () {
+    return 'rim_' + (material.map ? 'm' : '') + (material.normalMap ? 'n' : '') +
+      (material.roughnessMap ? 'r' : '') + (material.emissiveMap ? 'e' : '') +
+      (material.alphaMap ? 'a' : '') + (material.transparent ? 't' : '') +
+      (material.vertexColors ? 'v' : '') + (material.flatShading ? 'f' : '');
+  };
   return material;
+}
+
+// ── surface-detail textures (give each creature its distinctive skin) ──────────
+// reptile / dragon scales — overlapping rounded cells as a normal map
+export function scaleNormal(size = 256, cell = 26, strength = 3.0) {
+  return normalFromHeight(size, (x, y) => {
+    const row = Math.floor(y / cell);
+    const ox = (row % 2) * cell * 0.5;
+    const cx = ((x + ox) % cell) - cell / 2;
+    const cy = (y % cell) - cell / 2;
+    const d = Math.hypot(cx, cy) / (cell * 0.6);
+    return Math.max(0, 1 - d * d) + fbm(x / size * 8, y / size * 8, 3, 5) * 0.12;
+  }, strength);
+}
+// feather barbs — directional streaks for plumage
+export function featherTexture(size, baseHex, tipHex) {
+  const base = new THREE.Color(baseHex), tip = new THREE.Color(tipHex);
+  return paintTexture(size, (d, n) => {
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const shaft = Math.abs(((x % 18) - 9)) / 9;
+      const barb = 0.5 + 0.5 * Math.sin((y + x * 0.4) * 0.7);
+      const t = clamp(1 - shaft * 0.7) * (0.6 + barb * 0.4);
+      const col = base.clone().lerp(tip, t * 0.8 + fbm(x / n * 4, y / n * 4, 3, 9) * 0.2);
+      const i = (y * n + x) * 4;
+      d[i] = col.r * 255; d[i + 1] = col.g * 255; d[i + 2] = col.b * 255; d[i + 3] = 255;
+    }
+  });
+}
+// glossy insect chitin — segmented ridges
+export function chitinNormal(size = 256, segs = 8, strength = 2.6) {
+  return normalFromHeight(size, (x, y) =>
+    0.5 + 0.5 * Math.sin(y / size * segs * Math.PI * 2) + fbm(x / size * 10, y / size * 10, 3, 3) * 0.15, strength);
+}
+// leathery / hide wrinkles
+export function hideNormal(size = 256, strength = 2.0) {
+  return normalFromHeight(size, (x, y) =>
+    fbm(x / size * 5, y / size * 5, 5, 4) * 0.7 + valueNoise(x / size * 22, y / size * 22, 6) * 0.3, strength);
+}
+// bark / woody surface (Bowtruckle, plant beasts)
+export function barkNormal(size = 256, strength = 2.6) {
+  return normalFromHeight(size, (x, y) =>
+    valueNoise(x / size * 3, y / size * 26, 2) * 0.7 + fbm(x / size * 6, y / size * 18, 4, 8) * 0.3, strength);
+}
+// soft mottled spots/speckle albedo overlay
+export function spottedTexture(size, baseHex, spotHex, density = 0.4) {
+  const base = new THREE.Color(baseHex), spot = new THREE.Color(spotHex);
+  return paintTexture(size, (d, n) => {
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const s = valueNoise(x / n * 9, y / n * 9, 13);
+      const t = s > (1 - density) ? clamp((s - (1 - density)) / density) : 0;
+      const col = base.clone().lerp(spot, t * 0.9);
+      const i = (y * n + x) * 4;
+      d[i] = col.r * 255; d[i + 1] = col.g * 255; d[i + 2] = col.b * 255; d[i + 3] = 255;
+    }
+  });
 }
 
 // Standard "soft toon-ish" material used widely for creatures (warm, low metal)
