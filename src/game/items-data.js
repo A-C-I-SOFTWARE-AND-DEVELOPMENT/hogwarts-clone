@@ -22,6 +22,11 @@ export const ITEMS = {
   pepperup:      { name: 'Pepperup Tonic', kind: 'tool',  emoji: '🧪', cost: 30, sell: 0,  effects: { energy: 45 }, tag: 'potion', blurb: 'Steam from the ears — fully rested.' },
   calming_draught:{name: 'Calming Draught',kind: 'tool',  emoji: '🍵', cost: 26, sell: 0,  effects: { joy: 30, energy: 10 }, tag: 'potion', blurb: 'Soothes a frightened beast.' },
 
+  // ── CRAFTED (made at the workbench from harvested materials; not sold) ──
+  gourmet_treat: { name: 'Gourmet Beast Treat', kind: 'treat', emoji: '🧁', cost: 0, sell: 0, crafted: true, effects: { hunger: 34, joy: 28, energy: 8 }, tag: 'sweet', universalFav: true, blurb: 'Every beast adores it — a feast of bond.' },
+  growth_pellet: { name: 'Growth Pellet',      kind: 'tool',  emoji: '🌟', cost: 0, sell: 0, crafted: true, grantsLevel: 1, blurb: 'Coaxes a beast to grow a stage faster.' },
+  shiny_lure:    { name: 'Shiny Lure',         kind: 'tool',  emoji: '🪄', cost: 0, sell: 0, crafted: true, blurb: 'The next egg is guaranteed to hatch shiny.' },
+
   // ── TOOLS (used in care actions, not consumed) ──
   brush:         { name: 'Grooming Brush', kind: 'tool',  emoji: '🧹', cost: 0,  sell: 0,  persistent: true, blurb: 'For brushing fur, scale and feather.' },
   soap:          { name: 'Bubotuber Soap', kind: 'tool',  emoji: '🫧', cost: 0,  sell: 0,  persistent: true, blurb: 'A magical lather that never runs out.' },
@@ -36,6 +41,8 @@ export const ITEMS = {
   toy_chest:     { name: 'Toy Chest',        kind: 'decor', emoji: '🧰', cost: 80,  sell: 26, aura: 3, blurb: 'A jumble of beloved playthings.' },
   cozy_nest:     { name: 'Cozy Nest',        kind: 'decor', emoji: '🪺', cost: 70,  sell: 24, aura: 3, blurb: 'A snug place to rest and recover.' },
   crystal:       { name: 'Mana Crystal',     kind: 'decor', emoji: '🔮', cost: 200, sell: 70, aura: 6, blurb: 'Hums with restorative magic.' },
+  luck_charm:    { name: 'Leprechaun Charm',  kind: 'decor', emoji: '🍀', cost: 0,   sell: 40, aura: 2, crafted: true, coinBoost: 0.5, blurb: 'Beasts nearby produce extra Galleons.' },
+  breeding_pen:  { name: 'Breeding Pen',      kind: 'decor', emoji: '💞', cost: 260, sell: 80, aura: 2, blurb: 'A cosy bower where pairs may court and nest.' },
 };
 
 // Starter inventory the player begins with

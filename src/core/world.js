@@ -517,6 +517,23 @@ export class World {
     this.precip = new THREE.Points(g, m); this.scene.add(this.precip);
   }
 
+  // free-placed decor props (build mode)
+  setProps(list) {
+    if (!this._propGroup) { this._propGroup = new THREE.Group(); this.scene.add(this._propGroup); }
+    while (this._propGroup.children.length) {
+      const o = this._propGroup.children.pop();
+      o.traverse(n => { if (n.geometry) n.geometry.dispose(); });
+      this._propGroup.remove(o);
+    }
+    (list || []).forEach(p => {
+      const o = buildDecor(p.id, this);
+      if (!o) return;
+      o.position.set(p.x, this.groundAt(p.x, p.z), p.z);
+      o.rotation.y = p.rot || 0;
+      this._propGroup.add(o);
+    });
+  }
+
   // env passed to every creature each frame
   envState(timeScale = 1) {
     return {

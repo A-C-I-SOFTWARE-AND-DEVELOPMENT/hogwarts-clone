@@ -268,7 +268,10 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border:none;border-ra
 
 /* responsive */
 @media(max-width:720px){
-  #beastcard{width:min(280px,80vw);top:60px;left:10px}
+  #topbar{flex-wrap:wrap;gap:7px}
+  .hide-sm{display:none}
+  .iconbtn{width:36px;height:36px;font-size:1.02rem}
+  #beastcard{width:min(280px,80vw);top:108px;left:10px}
   #roster{top:auto;bottom:calc(108px + env(safe-area-inset-bottom));right:10px;flex-direction:row;max-width:94vw;max-height:none;overflow-x:auto;overflow-y:hidden}
   .rchip .rn{display:none}
   .rchip{flex-direction:row;padding:5px}

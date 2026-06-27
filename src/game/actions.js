@@ -4,6 +4,7 @@
 //  bond/XP. Favourite foods and well-timed care give the biggest rewards.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ITEMS } from './items-data.js';
+import { materialFor, MATERIALS } from './materials-data.js';
 import { NEED_META } from './needs.js';
 
 const now = () => performance.now() / 1000;
@@ -41,8 +42,8 @@ export function feed(ctx, itemId) {
   if (!cooled(ctx.live, 'feed')) { /* still consumed; allow */ }
 
   const meta = live.meta;
-  const loved = itemId === meta.favorite;
-  const liked = meta.diet?.includes(itemId);
+  const loved = itemId === meta.favorite || item.universalFav;
+  const liked = meta.diet?.includes(itemId) || item.universalFav;
   const fx = { ...(item.effects || {}) };
   let bond = 2;
   if (liked) { fx.joy = (fx.joy || 0) + 6; bond += 3; }
@@ -71,7 +72,8 @@ export function groom(ctx) {
   live.command('pet', 1.8);
   live.react('happy');
   world?.spawnSparkles(live.headWorld(), 8, 0xeaf2ff);
-  return { kind: 'groom', text: `Brushed ${beast.name}'s coat.`, emoji: '🧹' };
+  const drop = maybeMaterial(ctx, 0.3);
+  return { kind: 'groom', text: `Brushed ${beast.name}'s coat.` + (drop ? ` Found ${drop}!` : ''), emoji: '🧹' };
 }
 
 // ── WASH (soap/bubbles) ──
@@ -85,7 +87,8 @@ export function wash(ctx) {
   live.command('pet', 2.0);
   live.react('happy');
   world?.spawnSparkles(live.headWorld(), 14, 0xbfe6ff);
-  return { kind: 'wash', text: `${beast.name} is sparkling clean!`, emoji: '🫧' };
+  const drop = maybeMaterial(ctx, 0.35);
+  return { kind: 'wash', text: `${beast.name} is sparkling clean!` + (drop ? ` Found ${drop}!` : ''), emoji: '🫧' };
 }
 
 // ── PLAY (optional toy) ──
@@ -132,6 +135,22 @@ export function collect(ctx) {
   state.data.stats.collected += pending;
   world?.spawnCoins(live.headWorld(), Math.min(10, 3 + (pending / 6) | 0));
   live.react('happy');
-  const label = live.meta.produces?.item || 'treasure';
-  return { kind: 'collect', text: `${beast.name} gave you ${pending} ${pending === 1 ? 'Galleon' : 'Galleons'} of ${label}!`, emoji: '🪙', coins: pending };
+  // also harvest a unit or two of the species' magical material
+  const matId = materialFor(beast.species);
+  let matText = '';
+  if (matId) {
+    const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+    state.addMaterial(matId, n);
+    matText = ` + ${n} ${MATERIALS[matId].emoji} ${MATERIALS[matId].name}`;
+  }
+  return { kind: 'collect', text: `${beast.name} gave you ${pending} ${pending === 1 ? 'Galleon' : 'Galleons'}${matText}!`, emoji: '🪙', coins: pending };
+}
+
+// small chance for grooming/bathing to turn up a harvestable material
+function maybeMaterial(ctx, chance) {
+  if (Math.random() > chance) return null;
+  const matId = materialFor(ctx.beast.species);
+  if (!matId) return null;
+  ctx.state.addMaterial(matId, 1);
+  return MATERIALS[matId].emoji + ' ' + MATERIALS[matId].name;
 }
