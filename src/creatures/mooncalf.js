@@ -9,6 +9,7 @@ import { creatureMat, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'mooncalf',
+  archetype: 'beast',
   name: 'Mooncalf',
   latin: 'Luna vitulus',
   rarity: 'uncommon',

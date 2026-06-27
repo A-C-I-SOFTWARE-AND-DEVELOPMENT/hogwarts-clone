@@ -10,6 +10,7 @@ import { creatureMat, furTexture, TAU, clamp, lerp, easeOutBack, easeOutCubic } 
 
 export const meta = {
   id: 'diricawl',
+  archetype: 'avian',
   name: 'Diricawl',
   latin: 'Raphus evanescens',
   rarity: 'rare',

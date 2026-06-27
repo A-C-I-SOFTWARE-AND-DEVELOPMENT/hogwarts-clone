@@ -10,6 +10,7 @@ import { creatureMat, furTexture, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'puffskein',
+  archetype: 'amorphous',
   name: 'Puffskein',
   latin: 'Pilus mollis',
   rarity: 'common',

@@ -120,6 +120,16 @@ export class Stage {
 
   render(t = 0) {
     this.grade.uniforms.uTime.value = t;
-    this.composer.render();
+    // Guard the frame: under software GL (e.g. SwiftShader) a shader/program can
+    // momentarily report incomplete uniform state while it is still warming up,
+    // throwing mid-render. Swallow that single frame and recover next tick rather
+    // than tearing down the whole animation loop (which would white-screen the
+    // game). Real GPUs never hit this; we log the first few for diagnostics.
+    try {
+      this.composer.render();
+    } catch (e) {
+      this._renderErrs = (this._renderErrs || 0) + 1;
+      if (this._renderErrs <= 3) console.warn('skipped a frame during shader warm-up:', e.message);
+    }
   }
 }

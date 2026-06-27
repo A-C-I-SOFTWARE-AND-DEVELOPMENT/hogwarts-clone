@@ -9,6 +9,7 @@ import { creatureMat, furTexture, TAU } from '../core/util.js';
 
 export const meta = {
   id: 'kneazle',
+  archetype: 'beast',
   name: 'Kneazle',
   latin: 'Felis sagax',
   rarity: 'uncommon',

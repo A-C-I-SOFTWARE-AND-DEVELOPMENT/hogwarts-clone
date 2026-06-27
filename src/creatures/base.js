@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import * as THREE from 'three';
 import { TAU, clamp, lerp, damp, smooth, easeOutBack, easeOutElastic, makeRng, rngRange } from '../core/util.js';
+import { archProfile, personaProfile, chooseTarget } from './behavior.js';
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -45,10 +46,15 @@ export class Creature {
     this.rng = makeRng((opts.seed || 1) * 2654435761 % 2147483647 || 7);
 
     // ── behaviour state machine ──
-    // idle | walk | eat | play | sleep | pet | happy | beg | dig
-    this.state = 'idle';
+    // idle | walk | action | eat | play | sleep | pet | happy | beg | dig
+    this.state = 'walk';                     // start in motion — nobody just sits
     this.stateT = 0;
-    this.nextDecision = rngRange(this.rng, 1.2, 3.5);
+    this.action = null;                      // current ambient action name (state==='action')
+    // archetype + personality drives (overridden by builder/hero meta + director)
+    this.archetype = meta.archetype || 'beast';
+    this.archProfile = archProfile(this.archetype);
+    this.personaProfile = personaProfile('curious');
+    this.nextDecision = rngRange(this.rng, 0.4, 1.6);
     this.blinkT = rngRange(this.rng, 1, 4);
     this.blink = 0;
     this.bob = 0;                            // 0..1 squash amount for hops
@@ -89,6 +95,7 @@ export class Creature {
     // hooks a species can override
     this.onIdle = null;     // (t, dt, env) => void
     this.onReact = null;    // (kind) => void
+    this.onAction = null;   // (name, t, dt, env) => void — species flourish for an ambient action
     this.eyeMatList = [];   // species register eye materials for blink tinting
   }
 
@@ -126,32 +133,55 @@ export class Creature {
     return out;
   }
 
-  // ── behaviour driver ──
+  // ── behaviour driver ───────────────────────────────────────────────────────
+  //  Picks the NEXT thing the beast does. Designed so a creature is almost never
+  //  truly idle: it roams (gait by archetype) or performs an archetype-flavoured
+  //  ambient action, biased by its personality. Idle is a rare, short breather.
   decide(env) {
+    const prof = this.personaProfile;
+    const arch = this.archProfile;
     const m = this.mood();
     const r = this.rng();
-    // tired creatures sleep, especially at night
-    if (this.needs.energy < 22 || (env.night && r < 0.25 && this.needs.energy < 55)) {
-      this.enter('sleep', rngRange(this.rng, 6, 12)); return;
+    let dur;
+
+    // 1) genuinely tired → sleep (active personalities resist; rises at night)
+    if (this.needs.energy < 16 || (env.night && this.needs.energy < 46 && r < arch.rest + (1 - prof.activity) * 0.2)) {
+      dur = rngRange(this.rng, 5, 10); this.enter('sleep', dur); this.nextDecision = dur; return;
     }
-    if (m > 0.62 && r < 0.4) { this.enter('play', rngRange(this.rng, 2.5, 4.5)); return; }
-    if (r < 0.5) {
-      // pick a new wander target inside roam radius
-      const a = this.rng() * TAU, rad = this.rng() * this.roam;
-      this.target.set(this.home.x + Math.cos(a) * rad, 0, this.home.z + Math.sin(a) * rad);
-      this.enter('walk', rngRange(this.rng, 1.5, 3.5));
+    // 2) rare short breather — calmer beasts/archetypes pause a touch more
+    const pause = (1 - prof.activity) * 0.4 + arch.rest * 0.45;
+    if (r < pause * 0.6) {
+      dur = rngRange(this.rng, 0.6, 1.6); this.enter('idle', dur); this.nextDecision = dur; return;
+    }
+    // 3) content + playful → a joyful play burst
+    if (m > 0.56 && this.rng() < (prof.bias === 'play' ? 0.5 : 0.16)) {
+      dur = rngRange(this.rng, 1.8, 3.6); this.enter('play', dur); this.nextDecision = dur; return;
+    }
+    // 4) otherwise stay busy: roam to a personality-shaped spot, or do an action.
+    //    wider-roaming personalities cover more ground; the rest perform actions.
+    const roamBias = clamp(0.34 + prof.roam * 0.18, 0.3, 0.72);
+    if (this.rng() < roamBias) {
+      chooseTarget(this, env, this.target);
+      dur = rngRange(this.rng, 1.6, 3.4); this.enter('walk', dur); this.nextDecision = dur;
     } else {
-      this.enter('idle', rngRange(this.rng, 1.5, 3.5));
+      const acts = arch.actions;
+      this.action = acts[(this.rng() * acts.length) | 0];
+      dur = rngRange(this.rng, 1.1, 2.4); this.enter('action', dur); this.nextDecision = dur;
     }
   }
 
   enter(state, dur = 2) {
-    if (this.state === state && state !== 'walk') return;
+    if (this.state === state && state !== 'walk' && state !== 'action') return;
     this.state = state; this.stateT = 0; this.stateDur = dur;
-    if (state === 'eat' || state === 'play' || state === 'pet' || state === 'happy') this.bobPhase = 0;
+    if (state === 'eat' || state === 'play' || state === 'pet' || state === 'happy' || state === 'action') this.bobPhase = 0;
   }
 
-  // called by actions system
+  // perform a named archetype action for a spell
+  enterAction(name, dur = 1.6) {
+    this.action = name; this.enter('action', dur); this.nextDecision = dur;
+  }
+
+  // called by the player-actions system (feed / play / pet …)
   command(state, dur) {
     this.enter(state, dur);
     this.nextDecision = dur + 0.5;
@@ -168,14 +198,15 @@ export class Creature {
       const d = _v.length();
       if (d > 0.18) {
         _v.normalize();
-        const sp = this.speed * (this.meta.speed || 1) * dt * (env.timeScale || 1);
+        const gaitSpeed = (this.archProfile?.speed || 1) * (this.personaProfile?.speed || 1);
+        const sp = this.speed * (this.meta.speed || 1) * gaitSpeed * dt * (env.timeScale || 1);
         this.pos.addScaledVector(_v, Math.min(sp, d));
         this.heading = Math.atan2(_v.x, _v.z);
         moving = true;
+      } else {
+        // arrived — don't freeze in place, pick the next thing to do shortly
+        if (this.nextDecision > 0.12) this.nextDecision = 0.12;
       }
-    } else if (this.state === 'play') {
-      // little excited hops around home
-      moving = false;
     }
 
     // keep inside soft bounds of habitat
@@ -215,10 +246,23 @@ export class Creature {
       const w = Math.sin(t * 4);
       bodyRoll = w * 0.16; bodyY = (Math.sin(t * 2) * 0.5 + 0.5) * 0.04 * this.scaleMul;
       squashY = 0.98 + Math.sin(t * 4) * 0.02;
+    } else if (this.state === 'action') {
+      const a = this._actionBody(t, dt);
+      squashY = a.sy; squashXZ = a.sxz; bodyY = a.by; bodyPitch = a.bp; bodyRoll = a.br;
     } else if (this.state === 'walk') {
-      const stepF = Math.abs(Math.sin(t * 9));
-      bodyY = stepF * 0.06 * this.scaleMul;
-      bodyRoll = Math.sin(t * 9) * 0.05;
+      // gait gives each archetype a distinct way of moving across the ground
+      const s = this.scaleMul;
+      switch (this.archProfile?.gait) {
+        case 'hop': { const h = Math.abs(Math.sin(t * 6.5)); bodyY = h * 0.34 * s; squashY = lerp(1.12, 0.9, h); squashXZ = lerp(0.9, 1.08, h); break; }
+        case 'slither': { bodyRoll = Math.sin(t * 5) * 0.2; squashXZ = 1 + Math.sin(t * 5) * 0.03; bodyY = 0.0; break; }
+        case 'scurry': case 'skitter': case 'scuttle': { const f = Math.abs(Math.sin(t * 14)); bodyY = f * 0.03 * s; bodyRoll = Math.sin(t * 18) * 0.05; break; }
+        case 'prowl': case 'stalk': { const f = Math.abs(Math.sin(t * 6)); bodyY = f * 0.03 * s; bodyPitch = 0.05; bodyRoll = Math.sin(t * 6) * 0.06; break; }
+        case 'bob': { bodyY = (Math.sin(t * 3) * 0.5 + 0.5) * 0.12 * s; bodyRoll = Math.sin(t * 2) * 0.06; break; }
+        case 'drift': { bodyY = (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.1 * s; bodyRoll = Math.sin(t * 1.2) * 0.05; break; }
+        case 'root': { bodyY = 0; bodyRoll = Math.sin(t * 1.5) * 0.06; break; }
+        case 'amble': { const f = Math.abs(Math.sin(t * 6)); bodyY = f * 0.05 * s; bodyRoll = Math.sin(t * 6) * 0.07; break; }
+        default: { const f = Math.abs(Math.sin(t * 9)); bodyY = f * 0.06 * s; bodyRoll = Math.sin(t * 9) * 0.06; } // trot
+      }
     } else { // idle
       bodyY = breath * this.scaleMul * 6;
       squashY = 1 + breath; squashXZ = 1 - breath * 0.6;
@@ -277,6 +321,12 @@ export class Creature {
       this.parts.head.rotation.x = damp(this.parts.head.rotation.x, pitch, 6, dt);
     }
 
+    // ── archetype ambient action (overrides the generic part poses above) ──
+    if (this.state === 'action') {
+      this._actionParts(t, dt);
+      if (this.onAction) this.onAction(this.action, t, dt, env);
+    }
+
     // ── selection ring pulse ──
     this.glow = damp(this.glow, this.selected ? 1 : 0, 8, dt);
     this.ring.material.opacity = this.glow * (0.45 + Math.sin(t * 3) * 0.15);
@@ -285,16 +335,148 @@ export class Creature {
     // species-specific idle
     if (this.onIdle) this.onIdle(t, dt, env);
 
-    // ── decisions ──
-    if (this.nextDecision <= 0 && (this.state === 'idle' || this.state === 'walk')) {
-      this.decide(env);
-    } else if (this.nextDecision <= 0) {
-      // timed states return to idle
-      this.enter('idle', rngRange(this.rng, 1, 2.5));
-      this.nextDecision = rngRange(this.rng, 1.2, 3);
-    }
-    if (this.stateT > this.stateDur && (this.state === 'eat' || this.state === 'play' || this.state === 'pet' || this.state === 'happy' || this.state === 'sleep')) {
+    // ── decisions ── decide() always re-arms nextDecision, so this is the single
+    // heartbeat of the AI: whenever the timer lapses, choose the next behaviour.
+    if (this.nextDecision <= 0) this.decide(env);
+    // commanded / timed states cut their decision short once they've played out
+    if (this.stateT > this.stateDur && (this.state === 'eat' || this.state === 'play' || this.state === 'pet' || this.state === 'happy' || this.state === 'sleep' || this.state === 'action')) {
       if (this.nextDecision > 0) this.nextDecision = 0.01;
+    }
+  }
+
+  // ── body squash/lean for the current ambient action ──
+  _actionBody(t, dt) {
+    const s = this.scaleMul;
+    const breath = Math.sin(t * 1.6 + this.bobPhase) * 0.02;
+    let sy = 1 + breath, sxz = 1 - breath * 0.5, by = 0, bp = 0, br = 0;
+    switch (this.action) {
+      case 'peck': case 'snuffle': case 'graze': case 'dig': case 'finflick': {
+        const d = Math.abs(Math.sin(t * 9)); bp = 0.14 * d; by = -0.02 * d * s; break;
+      }
+      case 'preen': case 'groom': { br = Math.sin(t * 2.4) * 0.1; bp = 0.08; break; }
+      case 'snort': { by = Math.abs(Math.sin(t * 7)) * 0.03 * s; bp = -0.06; break; }
+      case 'throat': { const p = Math.abs(Math.sin(t * 5)); sxz = 1 + p * 0.1; sy = 1 - p * 0.04; break; }
+      case 'roar': { bp = -0.18; by = 0.04 * s; sy = 1.04; break; }
+      case 'situp': case 'rear': case 'rise': case 'coil': {
+        const u = smooth(clamp(this.stateT / 0.5, 0, 1)); bp = -0.5 * u; by = 0.12 * u * s; break;
+      }
+      case 'stretch': case 'reach': { const u = Math.sin(this.stateT * 2.0); bp = 0.18 * u; by = 0.04 * Math.abs(u) * s; break; }
+      case 'hop': case 'pounce': case 'dart': case 'caper': case 'splash': case 'bob': {
+        const h = Math.abs(Math.sin(t * 7)); by = h * 0.3 * s; sy = lerp(1.12, 0.9, h); sxz = lerp(0.9, 1.08, h); break;
+      }
+      case 'flutter': case 'buzz': case 'hover': { by = (0.08 + Math.abs(Math.sin(t * 12)) * 0.05) * s; sy = 1 + Math.sin(t * 12) * 0.02; break; }
+      case 'sway': { br = Math.sin(t * 1.5) * 0.16; bp = Math.sin(t * 1.1) * 0.06; break; }
+      case 'shiver': { br = Math.sin(t * 22) * 0.05; sxz = 1 + Math.sin(t * 22) * 0.02; break; }
+      case 'pulse': case 'ooze': case 'wobble': { const p = Math.sin(t * 4); sy = 1 + p * 0.13; sxz = 1 - p * 0.09; by = Math.abs(p) * 0.04 * s; break; }
+      case 'tailswish': case 'tailflick': case 'headtoss': case 'paw': case 'gesture': { br = Math.sin(t * 3) * 0.05; break; }
+      default: { /* look / headsweep / antennae / earswivel / blink — just breathe */ }
+    }
+    return { sy, sxz, by, bp, br };
+  }
+
+  // ── head / jaw / tail / legs / wings poses for the current ambient action ──
+  _actionParts(t, dt) {
+    const head = this.parts.head, jaw = this.parts.jaw, tail = this.parts.tail;
+    const legs = this.parts.legs, wings = this.parts.wings;
+    const headRest = head ? (head.userData.rest || 0) : 0;
+    const setJaw = (v) => { if (jaw) jaw.rotation.x = v; };
+    const front = () => { const r = []; for (let i = 0; i < legs.length; i++) { const l = legs[i]; if (l && l.position.z > 0) r.push(l); } return r.length ? r : legs.slice(0, 2); };
+    switch (this.action) {
+      case 'peck': case 'snuffle': case 'finflick': {
+        const d = Math.abs(Math.sin(t * 9));
+        if (head) head.rotation.x = headRest + 0.5 + d * 0.35;
+        setJaw(d * 0.4);
+        break;
+      }
+      case 'graze': {
+        if (head) { head.rotation.x = headRest + 0.85 + Math.sin(t * 6) * 0.08; head.rotation.y = Math.sin(t * 0.8) * 0.25; }
+        setJaw(Math.abs(Math.sin(t * 7)) * 0.3);
+        break;
+      }
+      case 'dig': {
+        const d = Math.abs(Math.sin(t * 11));
+        if (head) head.rotation.x = headRest + 0.5 + d * 0.3;
+        front().forEach((l, i) => l.rotation.x = 0.5 + Math.sin(t * 16 + i) * 0.45);
+        break;
+      }
+      case 'preen': case 'groom': {
+        if (head) { head.rotation.y = Math.sin(t * 4) * 0.6; head.rotation.x = headRest + 0.35 + Math.abs(Math.sin(t * 4)) * 0.25; }
+        break;
+      }
+      case 'look': case 'headsweep': case 'antennae': case 'earswivel': {
+        if (head) { head.rotation.y = Math.sin(t * 1.4) * 0.7; head.rotation.x = headRest + Math.sin(t * 0.9) * 0.16; }
+        break;
+      }
+      case 'snort': {
+        if (head) head.rotation.x = headRest - 0.06 + Math.sin(t * 18) * 0.06;
+        setJaw(0.1 + Math.abs(Math.sin(t * 9)) * 0.12);
+        break;
+      }
+      case 'roar': {
+        if (head) head.rotation.x = headRest - 0.35;
+        setJaw(0.5 + Math.sin(t * 4) * 0.12);
+        break;
+      }
+      case 'tongue': case 'throat': case 'blink': {
+        setJaw((0.5 + Math.sin(t * 9) * 0.5) * 0.45);
+        if (head && this.action === 'throat') head.rotation.x = headRest - 0.08;
+        break;
+      }
+      case 'headtoss': {
+        if (head) head.rotation.x = headRest - 0.3 + Math.sin(t * 6) * 0.3;
+        break;
+      }
+      case 'tailswish': case 'tailflick': {
+        if (tail) { tail.rotation.y = Math.sin(t * (this.action === 'tailflick' ? 9 : 5)) * 0.7; tail.rotation.x = (tail.userData.rest || 0); }
+        break;
+      }
+      case 'paw': case 'legtap': case 'scuttle': {
+        const fr = this.action === 'paw' ? front() : legs;
+        fr.forEach((l, i) => { if (l) l.rotation.x = Math.sin(t * 12 + i * 1.3) * 0.45; });
+        break;
+      }
+      case 'situp': case 'rear': case 'rise': {
+        const u = smooth(clamp(this.stateT / 0.5, 0, 1));
+        if (head) head.rotation.x = headRest - 0.3 * u;
+        front().forEach(l => { if (l) l.rotation.x = -0.7 * u; });
+        break;
+      }
+      case 'stretch': {
+        const u = Math.sin(this.stateT * 2.0);
+        if (head) head.rotation.x = headRest + 0.2 * u;
+        front().forEach(l => { if (l) l.rotation.x = 0.4 * u; });
+        break;
+      }
+      case 'coil': {
+        if (head) { head.rotation.x = headRest - 0.25; head.rotation.y = Math.sin(t * 2.5) * 0.5; }
+        setJaw(Math.abs(Math.sin(t * 6)) < 0.15 ? 0.2 : 0);
+        break;
+      }
+      case 'wingstretch': {
+        const u = smooth(clamp(this.stateT / 0.4, 0, 1));
+        wings.forEach(w => { if (w) w.rotation.z = (w.userData.side || 1) * (0.5 + 0.7 * u); });
+        break;
+      }
+      case 'flutter': case 'buzz': case 'hover': case 'flap': {
+        wings.forEach(w => { if (w) w.rotation.z = (w.userData.side || 1) * Math.sin(t * 16) * 0.7; });
+        break;
+      }
+      case 'pounce': case 'dart': {
+        // lunge a short hop forward along facing
+        const step = (this.action === 'dart' ? 1.1 : 0.7) * dt;
+        this.pos.x += Math.sin(this.faceAngle) * step;
+        this.pos.z += Math.cos(this.faceAngle) * step;
+        if (head) head.rotation.x = headRest + 0.12;
+        break;
+      }
+      case 'reach': {
+        const u = Math.sin(this.stateT * 2.0);
+        if (head) head.rotation.x = headRest - 0.2 * Math.abs(u);
+        break;
+      }
+      default: { /* sway / shiver / pulse / ooze / wobble / gesture / caper — body-driven */
+        if (head && (this.action === 'gesture' || this.action === 'caper')) head.rotation.y = Math.sin(t * 5) * 0.4;
+      }
     }
   }
 
