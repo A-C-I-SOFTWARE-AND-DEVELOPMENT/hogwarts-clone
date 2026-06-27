@@ -56,6 +56,7 @@ export class World {
     this._buildSurround();
     this._buildHabitat();
     this._buildParticles();
+    this._buildAmbient();
     this.setTime(this.hour);
     this.setWeather(this.weather);
   }
@@ -243,14 +244,15 @@ export class World {
     C.rotation.y = 0.22;
     C.scale.setScalar(1.18);
     this.scene.add(C);
-    const stone = new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.92, metalness: 0.02, envMapIntensity: 0.6 });
-    const stoneD = new THREE.MeshStandardMaterial({ color: 0x534e46, roughness: 0.95, envMapIntensity: 0.5 });
-    const roof = new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.7, metalness: 0.1 });
-    this.litMat = new THREE.MeshStandardMaterial({ color: 0xffce80, emissive: 0xffaa3c, emissiveIntensity: 1.2, roughness: 0.4 });
+    const stone = new THREE.MeshStandardMaterial({ color: 0x8d8479, roughness: 0.9, metalness: 0.02, envMapIntensity: 0.7 });
+    const stoneD = new THREE.MeshStandardMaterial({ color: 0x6f675b, roughness: 0.94, envMapIntensity: 0.6 });
+    const roof = new THREE.MeshStandardMaterial({ color: 0x3a3550, roughness: 0.6, metalness: 0.15 });
+    this.litMat = new THREE.MeshStandardMaterial({ color: 0xffd98f, emissive: 0xffb347, emissiveIntensity: 1.4, roughness: 0.4 });
     this.lit.push(this.litMat);
 
-    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(34, 44, 30, 22), stoneD);
-    plinth.position.y = -2; plinth.scale.set(1, 1, 0.7); C.add(plinth);
+    // craggy rock the castle is built on — lower and lighter so it reads as a base, not a black wall
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(30, 42, 20, 22), stoneD);
+    plinth.position.y = -5; plinth.scale.set(1, 1, 0.72); C.add(plinth);
 
     const tower = (x, z, r, h, rh) => {
       const t = new THREE.Group(); t.position.set(x, 12, z);
@@ -297,6 +299,11 @@ export class World {
     tower(-26, 12, 2.8, 26, 8);
     tower(6, 14, 2.6, 24, 7);
     tower(-2, -16, 3, 38, 11);
+    // a soaring central spire (the Astronomy Tower) + slim spires for a jagged skyline
+    tower(2, -2, 3.6, 56, 20);
+    tower(-15, 2, 2.3, 46, 16);
+    tower(19, -2, 2.5, 40, 15);
+    tower(8, -12, 2.0, 50, 18);
     keep.castShadow = greatHall.castShadow = true;
     this.castle = C;
   }
@@ -415,6 +422,34 @@ export class World {
     };
   }
 
+  // drifting atmosphere: warm pollen motes by day, glowing fireflies after dark
+  _buildAmbient() {
+    const N = Math.min(200, Math.floor((this.Q.grass || 9000) / 220) + 90);
+    const pos = new Float32Array(N * 3);
+    this._ambBase = new Float32Array(N * 3);
+    this._ambSeed = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const a = this.rng() * TAU, r = Math.sqrt(this.rng()) * (PAD_R + 6);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const y = 0.5 + this.rng() * 5.0;
+      pos[i * 3] = this._ambBase[i * 3] = x;
+      pos[i * 3 + 1] = this._ambBase[i * 3 + 1] = y;
+      pos[i * 3 + 2] = this._ambBase[i * 3 + 2] = z;
+      this._ambSeed[i * 3] = this.rng() * TAU;
+      this._ambSeed[i * 3 + 1] = this.rng() * TAU;
+      this._ambSeed[i * 3 + 2] = this.rng() * TAU;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.ambMat = new THREE.PointsMaterial({
+      map: dotTexture(0xffffff), size: 0.14, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending, color: 0xfff0c0,
+    });
+    this.ambient = new THREE.Points(g, this.ambMat);
+    this.ambient.frustumCulled = false;
+    this.scene.add(this.ambient);
+  }
+
   spawnHearts(pos, n = 3) {
     for (let i = 0; i < n; i++) this.fields.heart.emit(pos, {
       vel: new THREE.Vector3((Math.random() - 0.5) * 0.8, 1.6 + Math.random(), (Math.random() - 0.5) * 0.8),
@@ -476,8 +511,12 @@ export class World {
     this.hemi.groundColor.setHSL(0.27, 0.42, lerp(0.22, 0.26, day));
     this.moon.intensity = lerp(2.1, 0.0, smooth(0.0, 0.34, day));  // brighter, sculpting moonlight
     this.fill.intensity = lerp(3.4, 0.0, day);
-    this.renderer.toneMappingExposure = lerp(0.96, 0.92, day) * (this.lumos ? 1.4 : 1);
+    this.renderer.toneMappingExposure = lerp(0.98, 1.05, day) * (this.lumos ? 1.4 : 1);
     if (this.grassMat) { this.grassMat.uniforms.uDay.value = day; }
+    if (this.ambMat) {
+      if (this.night) { this.ambMat.color.set(0x9ef060); this.ambMat.size = 0.2; this.ambMat.opacity = 0.6; }   // fireflies
+      else { this.ambMat.color.set(0xfff0c0); this.ambMat.size = 0.13; this.ambMat.opacity = lerp(0.0, 0.3, day); } // pollen
+    }
     this.lit.forEach(m => m.emissiveIntensity = lerp(2.4, 0.25, day));
 
     // rebuild IBL from sky — throttled, PMREM is expensive (skip on tiny deltas)
@@ -563,6 +602,17 @@ export class World {
   update(t, dt) {
     if (this.water) this.water.material.uniforms.time.value += dt * 0.5;
     if (this.grassMat) this.grassMat.uniforms.uTime.value = t;
+    // drift the ambient motes; fireflies softly pulse after dark
+    if (this.ambient) {
+      const p = this.ambient.geometry.attributes.position, b = this._ambBase, s = this._ambSeed, arr = p.array;
+      for (let i = 0; i < p.count; i++) {
+        arr[i * 3] = b[i * 3] + Math.sin(t * 0.3 + s[i * 3]) * 1.3;
+        arr[i * 3 + 1] = b[i * 3 + 1] + Math.sin(t * 0.55 + s[i * 3 + 1]) * 0.5;
+        arr[i * 3 + 2] = b[i * 3 + 2] + Math.cos(t * 0.26 + s[i * 3 + 2]) * 1.3;
+      }
+      p.needsUpdate = true;
+      if (this.night && this.ambMat) this.ambMat.opacity = 0.5 + Math.sin(t * 3.0) * 0.35;
+    }
     for (const k in this.fields) this.fields[k].update(dt);
     if (this.precip) {
       const p = this.precip.geometry.attributes.position;
