@@ -37,23 +37,25 @@ function surfaceMats(skin, P) {
   switch (skin) {
     case 'fur': {
       const t = cached('fur' + base + (P.tip ?? belly), () => furTexture(128, base, P.tip ?? belly, 0.6));
-      bodyMat = creatureMat(base, { rough: 0.78, map: t, normalMap: FUR_N(), rimColor: rim.color });
+      bodyMat = creatureMat(base, { rough: 0.78, map: t, normalMap: FUR_N(), rimColor: P.rim ?? 0xffe6c0, rimStrength: 0.34 });
       bodyMat.normalScale = new THREE.Vector2(0.85, 0.85);
       bellyMat = creatureMat(belly, { rough: 0.66, normalMap: FUR_N() });
       bellyMat.normalScale = new THREE.Vector2(0.6, 0.6);
       break;
     }
     case 'scale': {
-      bodyMat = creatureMat(base, { rough: 0.42, metal: 0.06, normalMap: SCALE_N(), rimColor: 0xdfeaff, rimStrength: 0.42 });
-      bodyMat.normalScale = new THREE.Vector2(0.8, 0.8);
-      bellyMat = creatureMat(belly, { rough: 0.35, metal: 0.05 });
+      // wet, faintly iridescent reptilian scales
+      bodyMat = creatureMat(base, { rough: 0.34, metal: 0.14, normalMap: SCALE_N(), rimColor: P.spark ?? 0xa6f0d8, rimStrength: 0.55, emissive: accent, emissiveIntensity: 0.04 });
+      bodyMat.normalScale = new THREE.Vector2(0.9, 0.9);
+      bellyMat = creatureMat(belly, { rough: 0.3, metal: 0.1 });
       break;
     }
     case 'feather': {
       const t = cached('feat' + base + accent, () => featherTexture(128, base, accent));
-      bodyMat = creatureMat(base, { rough: 0.6, map: t, normalMap: SKIN_N(), rimColor: 0xfff0d0 });
+      // plumage with a soft iridescent sheen along the edge
+      bodyMat = creatureMat(base, { rough: 0.5, metal: 0.08, map: t, normalMap: SKIN_N(), rimColor: P.spark ?? 0xbfe0ff, rimStrength: 0.5, emissive: accent, emissiveIntensity: 0.05 });
       bodyMat.normalScale = new THREE.Vector2(0.5, 0.5);
-      bellyMat = creatureMat(belly, { rough: 0.58, normalMap: SKIN_N() });
+      bellyMat = creatureMat(belly, { rough: 0.56, normalMap: SKIN_N() });
       bellyMat.normalScale = new THREE.Vector2(0.4, 0.4);
       break;
     }
