@@ -8,6 +8,8 @@ import { HUD } from './hud.js';
 import { renderShop, renderSanctuary } from './shop.js';
 import { renderQuests } from './quests.js';
 import { renderSettings } from './settings.js';
+import { renderCompendium } from './compendium.js';
+import { renderBreeding } from './breeding.js';
 import { Onboarding } from './onboarding.js';
 
 export class UI {
@@ -92,6 +94,17 @@ export class UI {
       tabs: [{ id: 'daily', label: 'Daily' }, { id: 'mile', label: 'Milestones' }],
       render: (body, tab) => renderQuests(this.game, this, body, tab),
     });
+  }
+  openCompendium(section = 'beasts') {
+    this.sheet({
+      title: 'Bestiary', sub: 'Your menagerie, materials & workbench',
+      tabs: [{ id: 'beasts', label: 'Beasts' }, { id: 'materials', label: 'Materials' }, { id: 'craft', label: 'Workbench' }],
+      active: section,
+      render: (body, tab) => renderCompendium(this.game, this, body, tab),
+    });
+  }
+  openBreeding() {
+    this.sheet({ title: 'Breeding Bower', sub: 'Pair beasts & raise the next generation', render: (body) => renderBreeding(this.game, this, body) });
   }
   openSettings(section = 'world') {
     this.sheet({

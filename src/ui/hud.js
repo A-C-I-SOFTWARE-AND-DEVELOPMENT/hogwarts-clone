@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { el, $, $$, fmtNum, titleCase } from '../core/util.js';
 import { NEED_KEYS, NEED_META, moodValue, moodLabel, needBadges } from '../game/needs.js';
+import { stageOf, personalityOf } from '../game/genetics.js';
 import { metaOf, RARITY } from '../creatures/index.js';
 import { ITEMS } from '../game/items-data.js';
 
@@ -40,16 +41,21 @@ export class HUD {
     this.clockPh = el('div', { class: 'ph', text: '' });
 
     this.questDot = el('span', { class: 'dot', style: 'display:none' });
+    this.eggDot = el('span', { class: 'dot', style: 'display:none;background:var(--joy)' });
     const topbar = el('div', { id: 'topbar', class: 'pe' }, [
       el('div', { class: 'pill', id: 'coins' }, [el('span', { class: 'ic', text: '🪙' }), this.coins]),
-      el('div', { class: 'pill' }, [el('span', { class: 'ic', text: '📅' }), this.dayval]),
+      el('div', { class: 'pill hide-sm' }, [el('span', { class: 'ic', text: '📅' }), this.dayval]),
       el('div', { class: 'pill', id: 'clock', onclick: () => this.ui.openSettings('world') }, [
         el('span', { class: 'ic', text: '🕯️' }),
         el('div', {}, [this.clockTime, this.clockPh]),
       ]),
       el('div', { class: 'spacer' }),
-      el('button', { class: 'iconbtn', title: 'Sanctuary (adopt beasts)', onclick: () => this.ui.openSanctuary() }, '🥚'),
+      el('button', { class: 'iconbtn', title: 'Sanctuary (adopt beasts)', onclick: () => this.ui.openSanctuary() }, '🐾'),
+      el('button', { class: 'iconbtn', title: 'Bestiary & Workbench', onclick: () => this.ui.openCompendium() }, '📖'),
+      el('button', { class: 'iconbtn badge', title: 'Breeding', onclick: () => this.ui.openBreeding() }, ['💞', this.eggDot]),
       el('button', { class: 'iconbtn', title: 'Shop', onclick: () => this.ui.openShop() }, '🛒'),
+      el('button', { class: 'iconbtn', title: 'Build habitat', onclick: () => this.game.toggleBuild() }, '🔨'),
+      el('button', { class: 'iconbtn', title: 'Fly over the castle', onclick: () => this.game.toggleFly() }, '🧹'),
       el('button', { class: 'iconbtn badge', title: 'Quests', onclick: () => this.ui.openQuests() }, ['📜', this.questDot]),
       el('button', { class: 'iconbtn', title: 'Settings', onclick: () => this.ui.openSettings() }, '⚙️'),
     ]);
@@ -57,6 +63,7 @@ export class HUD {
     // ── beast card ──
     this.cardName = el('div', { class: 'nm', text: '—' });
     this.cardSpecies = el('div', { class: 'sp' });
+    this.cardTraits = el('div', { class: 'sp', style: 'margin-top:3px;gap:6px;flex-wrap:wrap' });
     this.cardMoodEm = el('div', { class: 'em', text: '🙂' });
     this.cardMoodW = el('div', { class: 'mw', text: '' });
     this.bondFill = el('i');
@@ -65,7 +72,7 @@ export class HUD {
     this.produce = el('button', { id: 'produce', class: 'pe', onclick: () => this.game.action('collect') }, '');
     this.card = el('div', { id: 'beastcard', class: 'pe' }, [
       el('div', { class: 'row' }, [
-        el('div', {}, [this.cardName, this.cardSpecies]),
+        el('div', { style: 'min-width:0' }, [this.cardName, this.cardSpecies, this.cardTraits]),
         el('div', { class: 'mood' }, [this.cardMoodEm, this.cardMoodW]),
       ]),
       el('div', { class: 'lvwrap' }, [this.bondTop, el('div', { class: 'bar bond' }, [this.bondFill])]),
@@ -112,6 +119,10 @@ export class HUD {
     b.on('newday', d => { this.dayval.textContent = 'Day ' + d; });
     b.on('quests', list => this._refreshQuestDot(list));
     b.on('decor', () => {});
+    b.on('egg', () => this._refreshEggDot());
+    b.on('hatched', () => { this._refreshEggDot(); this.refreshRoster(); });
+    b.on('egg-ready', () => { this._refreshEggDot(); this.game.toaster.show('An egg is ready to hatch! 🐣', '🥚', { tone: 'gold' }); });
+    b.on('materials', () => {});
   }
 
   _care(b, ev) {
@@ -156,11 +167,14 @@ export class HUD {
       ]);
       this.tray.append(node);
     });
-    // also allow plain play with no toy
+    // also allow plain play with no toy + the feeding mini-game
     if (mode === 'toy') {
       any = true;
       this.tray.append(el('button', { class: 'fitem', onclick: () => { this._closeTray(); this.game.action('play'); } }, [
         el('span', { class: 'fe', text: '🤸' }), el('span', { class: 'fn', text: 'Romp' }), el('span', { class: 'fc', text: 'free' }),
+      ]));
+      this.tray.append(el('button', { class: 'fitem', onclick: () => { this._closeTray(); this.game.miniFeast(); } }, [
+        el('span', { class: 'fe', text: '🎮' }), el('span', { class: 'fn', text: 'Frenzy' }), el('span', { class: 'fc', text: 'game' }),
       ]));
     }
     if (!any) {
@@ -183,9 +197,18 @@ export class HUD {
       document.createTextNode((SPECIES_EMOJI[beast.species] || '🐾') + ' ' + meta.name + ' '),
       el('span', { class: 'rar', style: `color:${rar.color}`, text: rar.label }),
     );
+    // genes & growth traits
+    const stg = stageOf(beast.level), pers = personalityOf(beast.genes);
+    const chip = (text, gold) => el('span', { class: 'rar', style: gold ? 'color:var(--gold-hi);border-color:var(--gold)' : 'color:var(--parchment-dim);border-color:var(--line-soft)', text });
+    this.cardTraits.innerHTML = '';
+    this.cardTraits.append(chip(stg.emoji + ' ' + stg.name), chip(pers.emoji + ' ' + pers.label));
+    if (beast.genes?.shiny) this.cardTraits.append(chip('✨ Shiny', true));
+    if (beast.bred) this.cardTraits.append(chip('🥚 Bred'));
     this.refreshStats();
     this.refreshRoster();
     this._refreshDockMinis();
+    this._refreshEggDot();
+    this._refreshQuestDot();
   }
 
   refreshStats() {
@@ -259,6 +282,12 @@ export class HUD {
   _refreshQuestDot(list) {
     const claimable = (list || this.game.quests.list()).some(q => q.done && !q.claimed);
     this.questDot.style.display = claimable ? '' : 'none';
+  }
+
+  _refreshEggDot() {
+    const eggs = this.game.state.data.eggs || [];
+    this.eggDot.style.display = eggs.length ? '' : 'none';
+    this.eggDot.style.background = eggs.some(e => e.ready) ? 'var(--good)' : 'var(--joy)';
   }
 
   setClock(time, phase) { this.clockTime.textContent = time; this.clockPh.textContent = phase; }

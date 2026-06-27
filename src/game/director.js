@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { buildCreature } from '../creatures/index.js';
 import { tickNeeds, moodValue } from './needs.js';
+import { applyGenesToCreature, personalityOf, stageOf } from './genetics.js';
 
 const VISIBLE_CAP = 6;
 const DAY_LENGTH_S = 600;            // a full 24h cycle in ~10 real minutes
@@ -61,6 +62,11 @@ export class Director {
       c.bond = b.bond; c.level = b.level;
       c.sparkleCb = (pos, n, col) => this.world.spawnSparkles(pos, n, col);
       c.heartCb = (pos, n) => this.world.spawnHearts(pos, n);
+      // genes: colour/size variation, shiny, growth stage
+      applyGenesToCreature(c, b.genes, b.level);
+      const pers = personalityOf(b.genes);
+      c.speed *= pers.speed;
+      c._targetScale = c.scaleMul * (c.sizeMod || 1) * stageOf(b.level).scale;
       this.world.scene.add(c.group);
       this.live.set(b.id, c);
       if (b._produce == null) b._produce = 0;
@@ -117,16 +123,37 @@ export class Director {
       const mood = moodValue(b.needs);
       const meta = c?.meta;
       if (meta?.produces && mood > 0.5) {
+        const pmul = personalityOf(b.genes).produce;
         const rate = meta.produces.amount / meta.produces.every;
-        b._produce = (b._produce || 0) + rate * dt * (onScreen ? 1 : 0.5) * (0.5 + mood);
+        b._produce = (b._produce || 0) + rate * dt * pmul * (onScreen ? 1 : 0.5) * (0.5 + mood);
       }
     }
 
-    // update live creatures + sync bond/level for behaviour
+    // advance breeding eggs (progress while their parents are content)
+    this._tickEggs(dt);
+
+    // update live creatures + sync bond/level, animate growth + shiny
     for (const [bid, c] of this.live) {
       const b = this.state.beast(bid);
       if (b) { c.bond = b.bond; c.level = b.level; }
       c.update(t, dt, env);
+      // smooth growth toward the current life-stage scale
+      const target = c.scaleMul * (c.sizeMod || 1) * stageOf(b ? b.level : 1).scale;
+      const s = c.group.scale.x + (target - c.group.scale.x) * (1 - Math.exp(-2 * dt));
+      c.group.scale.setScalar(s);
+      // shiny twinkle
+      if (c._shinyAura && Math.random() < dt * 1.5) this.world.spawnSparkles(c.headWorld(this._tmp), 2, 0xfff0b0);
+    }
+  }
+
+  _tickEggs(dt) {
+    const now = Date.now();
+    for (const egg of this.state.data.eggs) {
+      const span = Math.max(1, egg.hatchAt - egg.laidAtMs);
+      egg.progress = Math.min(1, (now - egg.laidAtMs) / span);
+      const wasReady = egg.ready;
+      egg.ready = now >= egg.hatchAt;
+      if (egg.ready && !wasReady) this.bus.emit('egg-ready', egg);
     }
   }
 

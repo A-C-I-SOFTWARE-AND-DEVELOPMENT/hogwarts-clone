@@ -15,7 +15,13 @@ import { Director } from './game/director.js';
 import { Quests } from './game/quests.js';
 import * as Actions from './game/actions.js';
 import { ITEMS } from './game/items-data.js';
+import { RECIPES } from './game/materials-data.js';
+import { canBreed, makeEgg, suggestChildName } from './game/breeding.js';
+import { stageOf } from './game/genetics.js';
+import { FlightController, BuildController } from './game/modes.js';
 import { metaOf } from './creatures/index.js';
+import { playDance } from './ui/minigames/dance.js';
+import { playFeast } from './ui/minigames/feast.js';
 import { UI } from './ui/index.js';
 
 const reduced = matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -77,8 +83,12 @@ class Game {
     this.audio.enabledSfx = this.state.data.settings.sfx;
     this.prog(90);
 
+    this.builder = new BuildController(this);
+    this.flight = new FlightController(this);
+
     this._wireBus();
     this.director.start();
+    this.world.setProps(this.state.data.props);
     this.prog(98);
 
     this._reveal();
@@ -113,6 +123,7 @@ class Game {
     el.addEventListener('pointerup', e => {
       if (!downPos || moved || performance.now() - downT > 500) { downPos = null; return; }
       downPos = null;
+      if (this.flight?.active || this.builder?.active) return;   // modes handle their own taps
       const nx = (e.clientX / innerWidth) * 2 - 1, ny = -(e.clientY / innerHeight) * 2 + 1;
       const id = this.director.pick(nx, ny);
       if (!id) return;
@@ -202,6 +213,91 @@ class Game {
     return true;
   }
 
+  // ── crafting ──
+  craft(recipeId) {
+    const r = RECIPES.find(x => x.id === recipeId);
+    if (!r) return false;
+    for (const m in r.cost) if (this.state.mat(m) < r.cost[m]) { this.audio.sfx('error'); this.ui.toaster.show('Not enough materials.', '🧰', { tone: 'bad' }); return false; }
+    if (r.coins && this.state.coins < r.coins) { this.audio.sfx('error'); this.ui.toaster.show('Not enough Galleons.', '🪙', { tone: 'bad' }); return false; }
+    for (const m in r.cost) this.state.useMaterial(m, r.cost[m]);
+    if (r.coins) this.state.spend(r.coins);
+    this.state.addItem(r.makes, r.qty || 1);
+    this.state.data.stats.crafted++;
+    this.audio.sfx('buy');
+    this.ui.toaster.show(`Crafted ${ITEMS[r.makes].name} ×${r.qty || 1}!`, ITEMS[r.makes].emoji, { tone: 'gold' });
+    this._queueSave();
+    return true;
+  }
+
+  // ── breeding ──
+  async startBreeding(aId, bId) {
+    const a = this.state.beast(aId), b = this.state.beast(bId);
+    const chk = canBreed(this.state, a, b);
+    if (!chk.ok) { this.audio.sfx('error'); this.ui.toaster.show(chk.reason, '💔', { tone: 'bad' }); return; }
+    this.ui.close();
+    const res = await playDance({ beastName: `${a.name} & ${b.name}`, difficulty: 2, themeColor: '#e07fc0' });
+    const bonus = res.success ? (0.5 + (res.accuracy || 0) * 0.5) : 0.25;
+    let forceShiny = false;
+    if (this.state.inv('shiny_lure')) { this.state.useItem('shiny_lure'); forceShiny = true; }
+    const egg = makeEgg(this.state, a, b, bonus);
+    if (forceShiny) egg.genes.shiny = true;
+    this.audio.sfx('rescue');
+    this.ui.toaster.show(`${a.name} & ${b.name} laid an egg!${res.success ? ' A beautiful courtship 💞' : ''}`, '🥚', { tone: 'gold', ms: 4200 });
+    this.quests?.checkMilestones?.();
+    this._queueSave();
+    setTimeout(() => this.ui.openBreeding(), 400);
+  }
+
+  hatchEgg(eggId) {
+    const egg = this.state.data.eggs.find(e => e.id === eggId);
+    if (!egg) return;
+    if (!egg.ready) { this.ui.toaster.show('This egg is still incubating.', '🥚'); return; }
+    const name = suggestChildName(egg.species);
+    const baby = this.state.hatchEgg(eggId, name);
+    if (baby) {
+      this.audio.sfx('levelup');
+      this.ui.toaster.show(`${name} the ${metaOf(baby.species).name} hatched!${baby.genes.shiny ? ' ✨ Shiny!' : ''}`, '🐣', { tone: 'gold', ms: 4600 });
+      this.setActive(baby.id);
+    }
+    this._queueSave();
+  }
+
+  useOnActive(itemId) {
+    const beast = this.state.active; if (!beast) return;
+    const it = ITEMS[itemId]; if (!it) return;
+    if (it.grantsLevel) {
+      if (!this.state.useItem(itemId)) return;
+      const before = stageOf(beast.level).key;
+      beast.level += it.grantsLevel; beast.bond = 0;
+      if (stageOf(beast.level).key !== before) this.bus.emit('levelup', beast);
+      this.audio.sfx('levelup');
+      this.ui.toaster.show(`${beast.name} grew! Now level ${beast.level}.`, '🌟', { tone: 'gold' });
+    } else if (it.effects) {
+      if (!this.state.useItem(itemId)) return;
+      this.state.applyNeeds(beast, it.effects);
+      this.audio.sfx('buy'); this.ui.toaster.show(`Used ${it.name} on ${beast.name}.`, it.emoji);
+    } else {
+      this.ui.toaster.show(`${it.name} is ready for your next breeding.`, it.emoji);
+    }
+    this.ui.refreshStats(); this._queueSave();
+  }
+
+  miniFeast() {
+    this.ui.close();
+    playFeast({ beastName: this.state.active?.name || 'your beast', difficulty: 2, themeColor: '#e8a34b' }).then(r => {
+      if (r.reward) this.state.addCoins(r.reward);
+      const beast = this.state.active;
+      if (beast) { this.state.applyNeeds(beast, { joy: Math.min(34, (r.score || 0)) }); this.state.addBond(beast, r.success ? 6 : 2); }
+      this.audio.sfx(r.success ? 'levelup' : 'click');
+      this.ui.toaster.show(`Caught ${r.score} treats!${r.reward ? ' +' + r.reward + '🪙' : ''}`, '🧺', { tone: r.reward ? 'gold' : '' });
+      this.quests?.track?.('play');
+      this.ui.refreshStats(); this._queueSave();
+    });
+  }
+
+  toggleBuild() { this.builder?.toggle(); }
+  toggleFly() { this.flight?.toggle(); }
+
   setTime(h) { this.world.setTime(h); }
   setTimePaused(b) { this.director.timePaused = b; }
   setWeather(w) { this.world.setWeather(w); this.audio.sfx('click'); }
@@ -244,10 +340,14 @@ class Game {
       this.director.update(t, dt);
       this.world.update(t, dt);
 
-      // camera follows active beast (gentle)
-      this.director.activeWorldPos(this._camTarget);
-      this.controls.target.lerp(this._camTarget, 1 - Math.exp(-3 * dt));
-      this.controls.update();
+      if (this.flight.active) {
+        this.flight.update(dt);
+      } else {
+        // camera follows active beast (gentle)
+        this.director.activeWorldPos(this._camTarget);
+        this.controls.target.lerp(this._camTarget, 1 - Math.exp(-3 * dt));
+        this.controls.update();
+      }
 
       // night ambience + audio
       this.audio.setNight?.(this.world.night);

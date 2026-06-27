@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { STARTER_INVENTORY } from './items-data.js';
 import { metaOf, SPECIES_LIST } from '../creatures/index.js';
+import { randomGenes } from './genetics.js';
 
 const KEY = 'hogwarts-beasts-save-v1';
 const DECAY_PER_HR = { hunger: 5.5, energy: 3.0, joy: 4.2, hygiene: 2.4 };
@@ -33,8 +34,12 @@ export class GameState {
       activeId: null,
       decor: [],
       unlocked: ['niffler'],
+      discovered: ['niffler'],          // compendium: species ever seen
+      materials: {},                    // crafting materials harvested
+      eggs: [],                         // active breeding eggs
+      props: [],                        // free-placed decor {id,x,z,rot}
       quests: null,
-      stats: { fed: 0, petted: 0, brushed: 0, played: 0, rescued: 0, collected: 0 },
+      stats: { fed: 0, petted: 0, brushed: 0, played: 0, rescued: 0, collected: 0, bred: 0, crafted: 0 },
       settings: { quality: null, music: true, sfx: true },
       onboarded: false,
     };
@@ -47,10 +52,25 @@ export class GameState {
       try { this.data = JSON.parse(raw); } catch (e) { this.data = null; }
     }
     if (!this.data) this.data = this.fresh();
+    this._migrate();
     this._applyAwayDecay();
     this.data.lastPlayed = Date.now();
     this.loaded = true;
     return this.data;
+  }
+
+  // fill in fields added in later versions so old saves keep working
+  _migrate() {
+    const d = this.data;
+    d.discovered = d.discovered || [...(d.unlocked || ['niffler'])];
+    d.materials = d.materials || {};
+    d.eggs = d.eggs || [];
+    d.props = d.props || [];
+    d.stats = Object.assign({ fed: 0, petted: 0, brushed: 0, played: 0, rescued: 0, collected: 0, bred: 0, crafted: 0 }, d.stats || {});
+    for (const b of d.beasts) {
+      if (!b.genes) b.genes = randomGenes();
+      if (b.bred == null) b.bred = false;
+    }
   }
 
   _applyAwayDecay() {
@@ -84,7 +104,7 @@ export class GameState {
     this.data.activeId = this.data.beasts[0].id;
   }
 
-  rescue(species, name, free = false) {
+  rescue(species, name, free = false, genes = null, bred = false) {
     const meta = metaOf(species);
     if (!meta) return null;
     if (!free) {
@@ -94,15 +114,56 @@ export class GameState {
     const b = {
       id: uid(), species, name: name || meta.name,
       needs: { hunger: 70, energy: 85, joy: 70, hygiene: 80 },
-      bond: 0, level: 1, xp: 0,
+      bond: 0, level: bred ? 1 : 3, xp: 0,
       adoptedDay: this.data.day, careStreak: 0, totalCare: 0,
       seed: Math.floor(Math.random() * 1e6) + 1,
+      genes: genes || randomGenes(),
+      bred,
     };
     this.data.beasts.push(b);
     if (!this.data.unlocked.includes(species)) this.data.unlocked.push(species);
+    if (!this.data.discovered.includes(species)) this.data.discovered.push(species);
     this.data.stats.rescued++;
     this.bus?.emit('rescued', b);
     this.save();
+    return b;
+  }
+
+  // ── materials & compendium ──
+  addMaterial(id, n = 1) { this.data.materials[id] = (this.data.materials[id] || 0) + n; this.bus?.emit('materials', id); }
+  mat(id) { return this.data.materials[id] || 0; }
+  useMaterial(id, n = 1) {
+    if ((this.data.materials[id] || 0) < n) return false;
+    this.data.materials[id] -= n;
+    if (this.data.materials[id] <= 0) delete this.data.materials[id];
+    this.bus?.emit('materials', id);
+    return true;
+  }
+  discover(species) {
+    if (!this.data.discovered.includes(species)) { this.data.discovered.push(species); this.bus?.emit('discovered', species); }
+  }
+
+  // ── breeding ──
+  startEgg(aId, bId, childSpecies, genes) {
+    const nowMs = Date.now();
+    const egg = {
+      id: uid(), a: aId, b: bId, species: childSpecies, genes,
+      laidDay: this.data.day, laidAtMs: nowMs, hatchAt: nowMs + 1000 * 90,  // 90s incubation
+      progress: 0, ready: false,
+    };
+    this.data.eggs.push(egg);
+    this.data.stats.bred++;
+    this.bus?.emit('egg', egg);
+    this.save();
+    return egg;
+  }
+  hatchEgg(eggId, name) {
+    const i = this.data.eggs.findIndex(e => e.id === eggId);
+    if (i < 0) return null;
+    const egg = this.data.eggs[i];
+    this.data.eggs.splice(i, 1);
+    const b = this.rescue(egg.species, name, true, egg.genes, true);
+    this.bus?.emit('hatched', b);
     return b;
   }
 

@@ -144,7 +144,6 @@ export function applyRim(material, { color = 0xbfd4ff, strength = 0.32, power = 
     );
     material.userData.shader = shader;
   };
-  material.customProgramCacheKey = () => 'rim' + material.userData.rim.power + '_' + material.userData.rim.cel;
   return material;
 }
 
