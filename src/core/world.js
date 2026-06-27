@@ -55,6 +55,7 @@ export class World {
     this._buildCastle();
     this._buildSurround();
     this._buildHabitat();
+    this._buildFlowers();
     this._buildParticles();
     this._buildAmbient();
     this.setTime(this.hour);
@@ -126,6 +127,22 @@ export class World {
     }
     g.computeVertexNormals();
 
+    // large-scale, non-repeating colour variation baked into vertex colours so the
+    // lawn reads as a real meadow — sunlit lighter patches, cooler hollows, warm
+    // worn earth — instead of one flat green.
+    const cols = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
+      const v = fbm(x * 0.045 + 5, z * 0.045 + 5, 3, 23);
+      const w = fbm(x * 0.13 + 9, z * 0.13 + 9, 2, 41);
+      const tint = 0.8 + v * 0.36 + w * 0.08 - clamp(-y, 0, 1) * 0.06;
+      const warm = (v - 0.5) * 0.14;
+      cols[i * 3] = clamp(tint + warm, 0.45, 1.45);
+      cols[i * 3 + 1] = clamp(tint, 0.45, 1.45);
+      cols[i * 3 + 2] = clamp(tint - warm * 0.7, 0.4, 1.45);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+
     const grassTex = paintTexture(256, (data, n) => {
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
         const f = fbm(x / n * 7, y / n * 7, 4, 3);
@@ -141,8 +158,8 @@ export class World {
     const grassN = normalFromHeight(128, (x, y, n) => fbm(x / n * 16, y / n * 16, 4, 4), 1.6);
     grassN.repeat.set(26, 26);
     this.groundMat = new THREE.MeshStandardMaterial({
-      map: grassTex, normalMap: grassN, normalScale: new THREE.Vector2(0.5, 0.5),
-      roughness: 1, metalness: 0, color: SEASON_GROUND[this.season],
+      map: grassTex, normalMap: grassN, normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 1, metalness: 0, color: SEASON_GROUND[this.season], vertexColors: true,
     });
     this.ground = new THREE.Mesh(g, this.groundMat);
     this.ground.receiveShadow = true;
@@ -161,6 +178,39 @@ export class World {
     this.scene.add(path);
 
     this._buildGrassBlades();
+  }
+
+  // little crossed-quad wildflowers dotted through the lawn for colour & charm
+  _buildFlowers() {
+    const N = Math.min(1300, Math.floor((this.Q.grass || 9000) / 14) + 40);
+    const p1 = new THREE.PlaneGeometry(0.3, 0.34); p1.translate(0, 0.17, 0);
+    const p2 = p1.clone(); p2.rotateY(Math.PI / 2);
+    const geo = BufferGeometryUtils.mergeGeometries([p1, p2]);
+    const mat = new THREE.MeshStandardMaterial({
+      map: flowerTexture(), transparent: true, alphaTest: 0.45, side: THREE.DoubleSide,
+      roughness: 0.85, metalness: 0,
+    });
+    const mesh = new THREE.InstancedMesh(geo, mat, N);
+    mesh.frustumCulled = false; mesh.castShadow = false;
+    const dummy = new THREE.Object3D();
+    const cols = [0xffffff, 0xfff0a0, 0xffb6cf, 0xc6b8ff, 0xffd166, 0xff9aa2, 0xfff4cf];
+    let n = 0;
+    for (let i = 0; i < N * 4 && n < N; i++) {
+      const a = this.rng() * TAU, r = Math.sqrt(this.rng()) * (PAD_R + 8);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (Math.hypot(x - 14, z - 8) < 8) continue;          // not in the pond
+      const y = this.groundAt(x, z); if (y < WATER_Y + 0.25) continue;
+      // gather them into loose patches so it reads like a wild meadow
+      if ((fbm(x * 0.18, z * 0.18, 2, 91) < 0.42) && this.rng() < 0.7) continue;
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(0, this.rng() * TAU, 0);
+      const s = 0.7 + this.rng() * 0.8; dummy.scale.set(s, s * (0.85 + this.rng() * 0.4), s);
+      dummy.updateMatrix(); mesh.setMatrixAt(n, dummy.matrix);
+      mesh.setColorAt(n, new THREE.Color(cols[(this.rng() * cols.length) | 0]));
+      n++;
+    }
+    mesh.count = n; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    this.flowers = mesh; this.scene.add(mesh);
   }
 
   _buildGrassBlades() {
@@ -696,6 +746,22 @@ function dotTexture(hex) {
   g.addColorStop(0.4, `rgba(${col.r * 255 | 0},${col.g * 255 | 0},${col.b * 255 | 0},0.9)`);
   g.addColorStop(1, 'rgba(0,0,0,0)');
   x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function flowerTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  x.clearRect(0, 0, 64, 64);
+  const cx = 32, cy = 32;
+  // five white petals around a golden centre
+  x.fillStyle = '#ffffff';
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU - Math.PI / 2;
+    const px = cx + Math.cos(a) * 15, py = cy + Math.sin(a) * 15;
+    x.beginPath(); x.ellipse(px, py, 11, 7, a, 0, TAU); x.fill();
+  }
+  const g = x.createRadialGradient(cx, cy, 0, cx, cy, 9);
+  g.addColorStop(0, '#ffe07a'); g.addColorStop(1, '#e8a23c');
+  x.fillStyle = g; x.beginPath(); x.arc(cx, cy, 8, 0, TAU); x.fill();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 function heartTexture() {
