@@ -274,8 +274,8 @@ export class World {
     wn.wrapS = wn.wrapT = THREE.RepeatWrapping;
     this.water = new Water(g, {
       textureWidth: 512, textureHeight: 512, waterNormals: wn,
-      sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x12303a,
-      distortionScale: 2.2, fog: true,
+      sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x1b4a54,
+      distortionScale: 2.6, fog: true,
     });
     this.water.rotation.x = -Math.PI / 2;
     this.water.position.set(14, WATER_Y, 8);
@@ -285,6 +285,29 @@ export class World {
       new THREE.MeshStandardMaterial({ color: 0x47433a, roughness: 1, envMapIntensity: 0.3 }));
     rim.rotation.x = Math.PI / 2; rim.position.set(14, -0.05, 8); rim.receiveShadow = true;
     this.scene.add(rim);
+
+    // lily pads (with the odd pink bloom) floating on the surface
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x3f7a3a, roughness: 0.7, side: THREE.DoubleSide });
+    const bloomMat = new THREE.MeshStandardMaterial({ color: 0xffd0e4, roughness: 0.55, emissive: 0x3a1020, emissiveIntensity: 0.08 });
+    for (let i = 0; i < 7; i++) {
+      const a = this.rng() * TAU, r = this.rng() * 5.6;
+      const px = 14 + Math.cos(a) * r, pz = 8 + Math.sin(a) * r;
+      const pad = new THREE.Mesh(new THREE.CircleGeometry(0.3 + this.rng() * 0.26, 16, 0, TAU * 0.86), padMat);
+      pad.rotation.x = -Math.PI / 2; pad.rotation.z = this.rng() * TAU; pad.position.set(px, WATER_Y + 0.05, pz);
+      this.scene.add(pad);
+      if (this.rng() < 0.4) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), bloomMat); b.position.set(px, WATER_Y + 0.11, pz); b.scale.y = 0.6; this.scene.add(b); }
+    }
+    // reeds clustered at the shore
+    const reedMat = new THREE.MeshStandardMaterial({ color: 0x5a7a2e, roughness: 0.9 });
+    for (let i = 0; i < 26; i++) {
+      const a = this.rng() * TAU, r = 7.3 + this.rng() * 1.3;
+      const px = 14 + Math.cos(a) * r, pz = 8 + Math.sin(a) * r;
+      const gy = this.groundAt(px, pz); if (gy < WATER_Y) continue;
+      const h = 0.8 + this.rng() * 0.95;
+      const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.04, h, 5), reedMat);
+      reed.position.set(px, gy + h / 2, pz); reed.rotation.set((this.rng() - 0.5) * 0.25, 0, (this.rng() - 0.5) * 0.3);
+      reed.castShadow = true; this.scene.add(reed);
+    }
   }
 
   // ── Hogwarts castle on the horizon ──
