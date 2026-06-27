@@ -501,17 +501,21 @@ function angleLerp(a, b, t) {
 export function eyeball(r = 0.12, irisHex = 0x1b2233, big = true) {
   const g = new THREE.Group();
   const white = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 16),
-    new THREE.MeshStandardMaterial({ color: 0xf6f2e8, roughness: 0.35 }));
+    new THREE.MeshStandardMaterial({ color: 0xf6f2e8, roughness: 0.16, metalness: 0.0 }));
   const iris = new THREE.Mesh(new THREE.SphereGeometry(r * (big ? 0.74 : 0.5), 16, 14),
-    new THREE.MeshStandardMaterial({ color: irisHex, roughness: 0.25, emissive: irisHex, emissiveIntensity: 0.18 }));
+    new THREE.MeshStandardMaterial({ color: irisHex, roughness: 0.14, emissive: irisHex, emissiveIntensity: 0.2 }));
   iris.position.z = r * 0.55;
   const pupil = new THREE.Mesh(new THREE.SphereGeometry(r * (big ? 0.42 : 0.26), 12, 10),
-    new THREE.MeshStandardMaterial({ color: 0x05060a, roughness: 0.2 }));
+    new THREE.MeshStandardMaterial({ color: 0x05060a, roughness: 0.1 }));
   pupil.position.z = r * 0.78;
-  const glint = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 8, 8),
+  // bright primary catch-light + a smaller secondary one — the wet glint that brings eyes to life
+  const glint = new THREE.Mesh(new THREE.SphereGeometry(r * 0.18, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  glint.position.set(r * 0.22, r * 0.26, r * 0.82);
-  g.add(white, iris, pupil, glint);
+  glint.position.set(r * 0.24, r * 0.3, r * 0.84);
+  const glint2 = new THREE.Mesh(new THREE.SphereGeometry(r * 0.08, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }));
+  glint2.position.set(-r * 0.2, -r * 0.16, r * 0.84);
+  g.add(white, iris, pupil, glint, glint2);
   g.userData.baseY = 1;
   return g;
 }
